@@ -1,0 +1,25 @@
+# 提交前自动执行代码规范校验（Black / Ruff / Mypy）
+# 使用本地已安装的工具（language: system），不依赖网络拉取远程环境。
+# 校验规则统一读取 pyproject.toml（tool.black / tool.ruff / tool.mypy）。
+repos:
+  - repo: local
+    hooks:
+      - id: black
+        name: black
+        entry: black
+        language: system
+        types: [python]
+
+      - id: ruff
+        name: ruff
+        entry: ruff check --fix
+        language: system
+        types: [python]
+
+      - id: mypy
+        name: mypy
+        entry: mypy
+        args: ["."]
+        language: system
+        types: [python]
+        pass_filenames: false

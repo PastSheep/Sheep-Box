@@ -1,0 +1,48 @@
+[project]
+name = "sheep-box"
+version = "0.1.0"
+description = "Sheep Box 项目"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = []
+
+[project.optional-dependencies]
+dev = [
+    "black==26.10.1",
+    "ruff==0.17.3",
+    "mypy==2.4.0",
+    "pre-commit==4.7.0",
+    "pytest==9.2.0",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["config*", "common*", "service*", "models*", "api*"]
+
+[tool.black]
+line-length = 88
+target-version = ["py310"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py310"
+src = ["."]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "C4"]
+ignore = []
+
+[tool.mypy]
+python_version = "3.10"
+disallow_untyped_defs = true
+check_untyped_defs = true
+warn_return_any = true
+ignore_missing_imports = true
+exclude = ["tests/"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

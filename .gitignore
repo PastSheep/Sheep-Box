@@ -1,0 +1,29 @@
+# ---------- 虚拟环境 ----------
+.venv/
+venv/
+
+# ---------- 密钥与本地配置 ----------
+*.env
+.env
+config/local*
+config/local/
+
+# ---------- 编译 / 缓存产物 ----------
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# ---------- 本地 IDE 配置 ----------
+.idea/
+.vscode/
+
+# ---------- 日志 / 临时文件 ----------
+*.log
+logs/
+.tmp/
+tmp/
