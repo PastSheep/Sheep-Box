@@ -14,6 +14,8 @@ dependencies = [
     # GUI 设置界面（PySide6）与配置安全写回（ruamel.yaml round-trip 保留注释）
     "PySide6==6.12.0",
     "ruamel.yaml==0.19.1",
+    # CLI 命令入口（typer，基于 click）
+    "typer==0.27.3",
 ]
 
 [project.optional-dependencies]
@@ -38,7 +40,7 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
-include = ["config*", "common*", "service*", "models*", "api*", "gui*"]
+include = ["config*", "common*", "service*", "models*", "api*", "gui*", "cli*"]
 
 [tool.black]
 line-length = 88
