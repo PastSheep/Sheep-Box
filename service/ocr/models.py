@@ -9,7 +9,7 @@ from dataclasses import dataclass, field
 
 from config.schema import ModelSpec
 
-__all__ = ["ModelSpec", "OCRTextItem", "OCRResult", "BBox"]
+__all__ = ["ModelSpec", "OCRTextItem", "OCRResult", "BBox", "clean_text_items"]
 
 
 BBox = list[list[int | float]]
@@ -31,6 +31,33 @@ class OCRTextItem:
     score: float
 
 
+def clean_text_items(items: list[OCRTextItem]) -> list[str]:
+    """将 OCR 文本行清洗为连续文本行列表。
+
+    清洗规则（针对检测/识别的常见噪声）：
+    - 逐行去除首尾空白（``strip``）；
+    - 过滤空行；
+    - 去除**相邻**完全重复的文本行（同一行被检测两次的常见碎片）。
+
+    Args:
+        items: OCR 识别的文本行列表（按版面顺序）。
+
+    Returns:
+        清洗后的连续文本行列表；非相邻的重复行会保留（内容仍有效）。
+    """
+    cleaned: list[str] = []
+    prev: str | None = None
+    for item in items:
+        text = item.text.strip()
+        if not text:
+            continue
+        if text == prev:
+            continue
+        cleaned.append(text)
+        prev = text
+    return cleaned
+
+
 @dataclass(frozen=True)
 class OCRResult:
     """一次识别的结构化结果。
@@ -45,8 +72,13 @@ class OCRResult:
 
     @property
     def text(self) -> str:
-        """按行拼接的纯文本（以换行分隔）。"""
+        """按行拼接的纯文本（以换行分隔，未清洗）。"""
         return "\n".join(item.text for item in self.items)
+
+    @property
+    def clean_text(self) -> str:
+        """清洗后的连续文本：去除空行、首尾空白与相邻重复行。"""
+        return "\n".join(clean_text_items(self.items))
 
     def __bool__(self) -> bool:
         """是否识别出内容。"""

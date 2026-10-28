@@ -141,3 +141,35 @@ def test_set_model_spec_invalid_raises(tmp_path, monkeypatch):
     manager = _make_manager(tmp_path, ModelMode.MEDIUM.value)
     with pytest.raises(ValueError):
         manager.set_model_spec("huge")
+
+
+def _item(text: str, score: float = 0.9) -> OCRTextItem:
+    return OCRTextItem(
+        text=text,
+        bbox=[[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]],
+        score=score,
+    )
+
+
+def test_clean_text_removes_blank_and_trims():
+    result = OCRResult(
+        items=[_item("  你好  "), _item(""), _item("  世界 ")], elapsed=0.1
+    )
+    assert result.clean_text == "你好\n世界"
+
+
+def test_clean_text_deduplicates_adjacent():
+    result = OCRResult(items=[_item("重复"), _item("重复"), _item("其他")])
+    assert result.clean_text == "重复\n其他"
+
+
+def test_clean_text_keeps_non_adjacent_duplicates():
+    result = OCRResult(items=[_item("A"), _item("B"), _item("A")])
+    assert result.clean_text == "A\nB\nA"
+
+
+def test_clean_text_preserves_original_text():
+    result = OCRResult(items=[_item(" 你好 "), _item("")])
+    # text 保持未清洗的原始拼接
+    assert result.text == " 你好 \n"
+    assert result.clean_text == "你好"
