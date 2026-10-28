@@ -77,7 +77,10 @@ manager.set_model_spec("tiny")
 暂不接入 OCR 识别，提供配置操作入口（"设置"标签页：查看/编辑 OCR 配置并保存，联动配置中心热更新）。
 
 ```bash
-python main.py --gui
+# 默认启动 GUI（普通用户入口）
+python main.py
+# 无头模式：不启动 GUI，仅初始化日志后退出
+python main.py --no-gui
 ```
 
 ### CLI（typer，可脚本化的无头入口）
