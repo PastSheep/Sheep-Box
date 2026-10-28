@@ -4,7 +4,11 @@ version = "0.1.0"
 description = "Sheep Box 项目"
 readme = "README.md"
 requires-python = ">=3.10"
-dependencies = []
+dependencies = [
+    "rapidocr_onnxruntime==1.4.4",
+    "pyyaml==6.0.3",
+    "pydantic==2.14.1",
+]
 
 [project.optional-dependencies]
 dev = [
@@ -13,6 +17,13 @@ dev = [
     "mypy==2.4.0",
     "pre-commit==4.7.0",
     "pytest==9.2.0",
+]
+# GPU 加速可选后端：按部署平台二选一安装（替换默认 CPU onnxruntime）
+ocr-gpu-dml = [
+    "onnxruntime-directml==1.24.4",
+]
+ocr-gpu-cuda = [
+    "onnxruntime-gpu==1.31.1",
 ]
 
 [build-system]
