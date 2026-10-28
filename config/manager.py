@@ -10,9 +10,22 @@
 """
 
 from pathlib import Path
+from typing import Any
 
 from config.loader import load_config
 from config.schema import AppConfig, OcrConfig
+
+
+def _deep_merge(target: dict[Any, Any], update: dict[Any, Any]) -> None:
+    """递归合并 ``update`` 到 ``target``，仅覆盖存在的键。
+
+    嵌套字典逐层合并；非字典值直接覆盖。未提供的字段保持不变。
+    """
+    for key, value in update.items():
+        if isinstance(value, dict) and isinstance(target.get(key), dict):
+            _deep_merge(target[key], value)
+        else:
+            target[key] = value
 
 
 class ConfigManager:
@@ -64,6 +77,35 @@ class ConfigManager:
         """
         self._refresh_if_changed()
         return self._config
+
+    def save_ocr(self, update: dict[str, object]) -> None:
+        """写回 OCR 配置字段到 config.yaml（round-trip，保留注释与结构）。
+
+        仅更新 ``update`` 中提供的字段，未提供的字段保持不变；写回前先用
+        schema 校验，避免写入非法配置。写回后强制重载，更新热更新基准。
+
+        Args:
+            update: 要更新的 OCR 配置字段，支持嵌套字典，如
+                ``{"model": {"mode": "tiny"}, "device": {"gpu_enabled": True}}``。
+
+        Raises:
+            ValidationError: ``update`` 合并后产生的 OCR 配置不合法。
+            OSError: 配置文件读写失败。
+        """
+        from ruamel.yaml import YAML
+
+        yaml = YAML()
+        with self.path.open("r", encoding="utf-8") as f:
+            data = yaml.load(f)
+        if data is None:
+            data = {}
+        ocr = data.setdefault("ocr", {})
+        _deep_merge(ocr, update)
+        # 用副本校验合并结果，避免污染原对象；非法则抛出，不写坏文件
+        OcrConfig.model_validate(dict(ocr))
+        with self.path.open("w", encoding="utf-8") as f:
+            yaml.dump(data, f)
+        self.reload()
 
     def ocr(self) -> OcrConfig:
         """获取 OCR 模块配置。

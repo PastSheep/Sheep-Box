@@ -11,6 +11,9 @@ dependencies = [
     "onnxruntime",
     "pyyaml==6.0.3",
     "pydantic==2.14.1",
+    # GUI 设置界面（PySide6）与配置安全写回（ruamel.yaml round-trip 保留注释）
+    "PySide6==6.12.0",
+    "ruamel.yaml==0.19.1",
 ]
 
 [project.optional-dependencies]
@@ -35,7 +38,7 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
-include = ["config*", "common*", "service*", "models*", "api*"]
+include = ["config*", "common*", "service*", "models*", "api*", "gui*"]
 
 [tool.black]
 line-length = 88
