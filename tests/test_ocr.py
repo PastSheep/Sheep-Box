@@ -44,12 +44,15 @@ ocr:
       tiny:
         det: tiny/det.onnx
         rec: tiny/rec.onnx
+        dict_path: tiny/dict.txt
       small:
         det: small/det.onnx
         rec: small/rec.onnx
+        dict_path: small/dict.txt
       medium:
         det: medium/det.onnx
         rec: medium/rec.onnx
+        dict_path: medium/dict.txt
   device:
     gpu_enabled: false
 """

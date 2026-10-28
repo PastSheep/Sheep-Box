@@ -18,6 +18,7 @@ ocr:
       medium:
         det: assets/ocr/models/medium/det.onnx
         rec: assets/ocr/models/medium/rec.onnx
+        dict_path: assets/ocr/models/medium/dict.txt
         cls: assets/ocr/models/medium/cls.onnx
   device:
     gpu_enabled: false
@@ -86,13 +87,15 @@ ocr:
       medium:
         det: a.onnx
         rec: b.onnx
+        dict_path: d.txt
 """
     path = _write(tmp_path, content)
     cfg = load_config(path)
     # 未提供 device / thresholds / mode，均回退默认值
-    assert cfg.ocr.device.gpu_enabled is False
+    assert cfg.ocr.device.gpu_enabled is True  # 首版默认启用 GPU
     assert cfg.ocr.thresholds.text_score == 0.5
-    assert cfg.ocr.model.mode.value == "medium"
+    assert cfg.ocr.model.mode.value == "small"  # 默认规格为 small
+    assert cfg.ocr.model.default_spec.value == "small"
     assert cfg.ocr.language == "zh"
 
 

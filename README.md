@@ -20,18 +20,17 @@ pip install -e ".[dev]"
 pre-commit install
 ```
 
-> **GPU 加速（可选）**：默认使用 CPU 推理。如需 GPU，按部署平台二选一安装，
-> 会替换默认的 CPU onnxruntime：
+> **GPU 加速（首版 Windows，默认启用）**：默认开启 GPU（DirectML），
+> 需按部署平台安装对应后端（替换默认 CPU onnxruntime）：
 >
 > ```bash
-> # Windows：支持 AMD / NVIDIA / Intel 显卡（DirectML）
+> # Windows：支持 AMD / NVIDIA / Intel 显卡（DirectML，默认启用）
 > pip install -e ".[ocr-gpu-dml]"
 > # Linux / NVIDIA：CUDA 后端
 > pip install -e ".[ocr-gpu-cuda]"
 > ```
 >
-> 然后开启配置 `config/config.yaml` 的 `ocr.device.gpu_enabled: true`。
-> 未安装 GPU 后端或探测失败时，程序自动回退 CPU。
+> 未安装 GPU 后端或探测失败时，程序自动回退 CPU（内部处理，无需手动配置）。
 
 ## 目录结构
 
@@ -65,8 +64,8 @@ result.text                               # 按行拼接的纯文本
 manager.set_model_spec("tiny")
 ```
 
-- 模型规格：`ocr.model.mode`（tiny/small/medium/all），非 `all` 时只同时加载一个规格实例；
-- 设备：`ocr.device.gpu_enabled`（GPU 开关），自动探测 + CPU 回退由程序内部处理；
+- 模型规格：PP-OCRv6 `ocr.model.mode`（tiny/small/medium/all），默认 `small`；非 `all` 时只同时加载一个规格实例；
+- 设备：`ocr.device.gpu_enabled`（GPU 开关，首版 Windows 默认启用），自动探测 + CPU 回退由程序内部处理；
 - 配置热更新：修改 `config/config.yaml` 后自动生效，无需重启。
 
 ## 开发规范

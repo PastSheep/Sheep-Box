@@ -109,6 +109,7 @@ class OCRManager:
             paths=ModelSpecPaths(
                 det=str(_resolve_path(paths.det, base_dir)),
                 rec=str(_resolve_path(paths.rec, base_dir)),
+                dict_path=str(_resolve_path(paths.dict_path, base_dir)),
                 cls=str(_resolve_path(paths.cls, base_dir)) if paths.cls else None,
             ),
             device=device,

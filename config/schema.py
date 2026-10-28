@@ -35,10 +35,13 @@ class ModelMode(str, Enum):
 
 
 class ModelSpecPaths(BaseModel):
-    """单个模型规格对应的 ONNX 模型文件路径。"""
+    """单个模型规格对应的 ONNX 模型文件路径（PP-OCRv6）。"""
 
     det: str = Field(..., description="文本检测模型 det 的 onnx 路径")
     rec: str = Field(..., description="文本识别模型 rec 的 onnx 路径")
+    dict_path: str = Field(
+        ..., description="文本识别模型 rec 对应的字典（keys）文件路径，必填"
+    )
     cls: str | None = Field(
         default=None, description="方向分类模型 cls 的 onnx 路径（可选）"
     )
@@ -48,14 +51,14 @@ class OcrModelConfig(BaseModel):
     """OCR 模型加载相关配置。"""
 
     mode: ModelMode = Field(
-        default=ModelMode.MEDIUM, description="默认模型模式：tiny/small/medium/all"
+        default=ModelMode.SMALL, description="默认模型模式：tiny/small/medium/all"
     )
     default_spec: ModelSpec = Field(
-        default=ModelSpec.MEDIUM,
+        default=ModelSpec.SMALL,
         description="mode 非 all 时的默认加载规格",
     )
     models: dict[ModelSpec, ModelSpecPaths] = Field(
-        ..., description="各规格的 det/rec/cls 模型路径，必填"
+        ..., description="各规格的 det/rec/dict/cls 模型路径，必填"
     )
 
 
@@ -63,9 +66,11 @@ class OcrDeviceConfig(BaseModel):
     """OCR 运行设备配置。
 
     仅暴露 GPU 加速开关；自动探测与 CPU 回退由程序内部处理。
+    首版仅面向 Windows：默认启用 GPU（需安装 DirectML 后端，
+    ``onnxruntime-directml``），未安装或探测失败时自动回退 CPU。
     """
 
-    gpu_enabled: bool = Field(default=False, description="是否启用 GPU 加速")
+    gpu_enabled: bool = Field(default=True, description="是否启用 GPU 加速")
 
 
 class OcrThresholdConfig(BaseModel):

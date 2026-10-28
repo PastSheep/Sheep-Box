@@ -5,7 +5,10 @@ description = "Sheep Box 项目"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "rapidocr_onnxruntime==1.4.4",
+    # RapidOCR v3（默认推理引擎 ONNX Runtime，已集成 PP-OCRv6 三档模型路由）
+    "rapidocr==3.10.0",
+    # ONNX Runtime CPU 推理后端；GPU 由下方 ocr-gpu-* extra 按平台替换
+    "onnxruntime",
     "pyyaml==6.0.3",
     "pydantic==2.14.1",
 ]
@@ -19,6 +22,7 @@ dev = [
     "pytest==9.2.0",
 ]
 # GPU 加速可选后端：按部署平台二选一安装（替换默认 CPU onnxruntime）
+# 首版仅面向 Windows，默认启用 DirectML 后端
 ocr-gpu-dml = [
     "onnxruntime-directml==1.24.4",
 ]

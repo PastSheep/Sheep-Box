@@ -1,13 +1,14 @@
-"""OCR 引擎封装：基于 RapidOCR（ONNX Runtime）的识别实现。
+"""OCR 引擎封装：基于 RapidOCR v3（ONNX Runtime）的识别实现。
 
-将 RapidOCR 的底层返回结构转换为模块统一的结构化输出，
-并支持按模型规格传入对应的 ONNX 模型路径与设备执行计划。
+将 RapidOCR v3 的底层返回结构（``RapidOCROutput``）转换为模块统一的结构化输出，
+并支持按模型规格传入对应的本地 PP-OCRv6 ONNX 模型路径、字典文件与设备执行计划。
 """
 
 import logging
 from typing import Any
 
-from rapidocr_onnxruntime import RapidOCR
+from rapidocr import EngineType, OCRVersion, RapidOCR
+from rapidocr.utils.output import RapidOCROutput
 
 from config.schema import ModelSpec, ModelSpecPaths, OcrThresholdConfig
 from service.ocr.device import DevicePlan
@@ -17,11 +18,11 @@ logger = logging.getLogger(__name__)
 
 
 class OCREngine:
-    """封装单个模型规格的识别引擎。
+    """封装单个模型规格的识别引擎（rapidocr v3 params API）。
 
     Args:
         spec: 模型规格（tiny / small / medium）。
-        paths: 该规格的 det / rec / cls 模型路径。
+        paths: 该规格的 det / rec / cls 模型路径与 rec 字典文件。
         device: 设备执行计划（GPU / CPU）。
         thresholds: 识别阈值配置。
     """
@@ -33,28 +34,37 @@ class OCREngine:
         device: DevicePlan,
         thresholds: OcrThresholdConfig,
     ) -> None:
-        kwargs: dict[str, Any] = {}
-        kwargs["det_model_path"] = paths.det
-        kwargs["rec_model_path"] = paths.rec
+        params: dict[str, Any] = {
+            # 全局：识别置信度阈值
+            "Global.text_score": thresholds.text_score,
+            # 检测（DBNet）
+            "Det.engine_type": EngineType.ONNXRUNTIME,
+            "Det.model_path": paths.det,
+            "Det.box_thresh": thresholds.box_thresh,
+            "Det.unclip_ratio": thresholds.unclip_ratio,
+            # 识别（CRNN）
+            "Rec.engine_type": EngineType.ONNXRUNTIME,
+            "Rec.model_path": paths.rec,
+            "Rec.rec_keys_path": paths.dict_path,
+        }
+        # 方向分类（可选）：v6 采用 PP-OCRv5 的 cls 模型，三档共用；
+        # 输入 shape 由 ocr_version 决定（PP-OCRv5 → [3, 80, 160]）
         if paths.cls:
-            kwargs["cls_model_path"] = paths.cls
+            params["Cls.engine_type"] = EngineType.ONNXRUNTIME
+            params["Cls.ocr_version"] = OCRVersion.PPOCRV5
+            params["Cls.model_path"] = paths.cls
 
-        # GPU 开关需逐模块（det/rec/cls）传入
+        # 设备：仅向引擎注入本次生效的后端开关（DirectML / CUDA）
         if device.use_dml:
-            kwargs.update(det_use_dml=True, rec_use_dml=True, cls_use_dml=True)
+            params["EngineConfig.onnxruntime.use_dml"] = True
         elif device.use_cuda:
-            kwargs.update(det_use_cuda=True, rec_use_cuda=True, cls_use_cuda=True)
-
-        # 阈值收敛到引擎初始化配置
-        kwargs["det_box_thresh"] = thresholds.box_thresh
-        kwargs["det_unclip_ratio"] = thresholds.unclip_ratio
-        kwargs["text_score"] = thresholds.text_score
+            params["EngineConfig.onnxruntime.use_cuda"] = True
 
         logger.info(
             "loading OCR engine: spec=%s device=%s", spec.value, device.device_name
         )
         self._spec = spec
-        self._engine = RapidOCR(**kwargs)
+        self._engine = RapidOCR(params=params)
 
     @property
     def spec(self) -> ModelSpec:
@@ -70,24 +80,21 @@ class OCREngine:
         Returns:
             ``(items, elapsed)``，items 为识别文本行列表，elapsed 为耗时（秒）。
         """
-        result, elapse = self._engine(image_bytes)
-        if not result:
+        result = self._engine(image_bytes)
+        if not isinstance(result, RapidOCROutput) or not result.txts:
+            return [], 0.0
+        if result.boxes is None or result.scores is None:
             return [], 0.0
 
-        items: list[OCRTextItem] = []
-        for entry in result:
-            box, text, score = entry[0], entry[1], entry[2]
-            items.append(OCRTextItem(text=text, bbox=_to_bbox(box), score=float(score)))
-        return items, _sum_elapse(elapse)
-
-
-def _sum_elapse(elapse: Any) -> float:
-    """将 RapidOCR 返回的耗时（可能是各阶段耗时列表）折算为总耗时（秒）。"""
-    if isinstance(elapse, (list, tuple)):
-        return sum(float(x) for x in elapse if x is not None)
-    return float(elapse or 0.0)
+        items: list[OCRTextItem] = [
+            OCRTextItem(text=text, bbox=_to_bbox(box), score=float(score))
+            for box, text, score in zip(
+                result.boxes, result.txts, result.scores, strict=False
+            )
+        ]
+        return items, result.elapse
 
 
 def _to_bbox(box: Any) -> BBox:
-    """将 RapidOCR 返回的坐标转换为模块统一的 BBox 结构。"""
+    """将 RapidOCR 返回的四点多边形坐标转换为模块统一的 BBox 结构。"""
     return [[float(px), float(py)] for px, py in box]
