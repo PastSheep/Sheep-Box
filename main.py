@@ -11,7 +11,6 @@
 import argparse
 import logging
 from logging.config import dictConfig
-from pathlib import Path
 
 LOG_CONFIG = {
     "version": 1,
@@ -45,11 +44,11 @@ def main() -> None:
     args = parser.parse_args()
 
     if not args.no_gui:
-        # 默认启动 GUI（普通用户入口）；延迟导入，无头模式不加载 PySide6
+        # 默认启动 GUI（普通用户入口）；组装收敛到 bootstrap，延迟导入避免无头加载
+        from app.bootstrap import build_settings_controller
         from gui.view.main_window import run_gui
 
-        config_path = Path(__file__).resolve().parent / "config" / "config.yaml"
-        run_gui(config_path)
+        run_gui(build_settings_controller())
         return
 
     logger.info("service started")

@@ -1,7 +1,5 @@
 """主窗口与 GUI 启动入口。"""
 
-from pathlib import Path
-
 from PySide6.QtWidgets import QApplication, QMainWindow, QTabWidget, QWidget
 
 from gui.controller.settings_controller import SettingsController
@@ -24,16 +22,13 @@ class MainWindow(QMainWindow):
         self.resize(600, 480)
 
 
-def run_gui(config_path: str | Path) -> int:
+def run_gui(controller: SettingsController) -> int:
     """启动 GUI 应用（阻塞运行，返回退出码）。
 
-    Args:
-        config_path: 配置文件（``config/config.yaml``）路径。
+    依赖对象由调用方（main.py 经 bootstrap）组装后传入，本函数只负责
+    创建应用与窗口，不再内部 ``new`` 依赖。
     """
-    from config.manager import ConfigManager
-
     app = QApplication.instance() or QApplication([])
-    config_manager = ConfigManager(config_path)
-    window = MainWindow(SettingsController(config_manager))
+    window = MainWindow(controller)
     window.show()
     return app.exec()

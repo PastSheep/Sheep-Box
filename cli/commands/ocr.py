@@ -9,10 +9,8 @@ from typing import Annotated
 
 import typer
 
-from cli import config_path
-from config.manager import ConfigManager
+from app.bootstrap import build_ocr_manager, default_config_path
 from config.schema import ModelSpec
-from service.ocr.manager import OCRManager
 from service.ocr.models import OCRResult
 
 __all__ = ["ocr_cmd"]
@@ -47,8 +45,8 @@ def ocr_cmd(
     """识别单张图片（字节流输入，结构化输出）。"""
     if not image.exists():
         raise typer.BadParameter(f"图片不存在: {image}")
-    cfg = config if config is not None else config_path()
-    manager = OCRManager(ConfigManager(cfg))
+    cfg = config if config is not None else default_config_path()
+    manager = build_ocr_manager(cfg)
     if spec is not None:
         manager.set_model_spec(spec)
     result = manager.recognize(image.read_bytes())

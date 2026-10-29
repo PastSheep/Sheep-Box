@@ -9,8 +9,7 @@ from typing import Annotated
 
 import typer
 
-from cli import config_path
-from config.manager import ConfigManager
+from app.bootstrap import build_config_manager, default_config_path
 from config.schema import ModelMode, ModelSpec
 
 __all__ = ["config_app"]
@@ -29,7 +28,7 @@ _DEFAULTS_UPDATE: dict[str, object] = {
 
 
 def _resolve_config(config: Path | None) -> Path:
-    return config if config is not None else config_path()
+    return config if config is not None else default_config_path()
 
 
 def _parse_value(text: str) -> object:
@@ -101,7 +100,7 @@ def config_get(
     ] = None,
 ) -> None:
     """查看当前生效配置。"""
-    cm = ConfigManager(_resolve_config(config))
+    cm = build_config_manager(_resolve_config(config))
     data = cm.ocr().model_dump(mode="json")
     if path:
         _emit({path: _get_by_path(data, path)}, json_output)
@@ -130,7 +129,7 @@ def config_set(
     ] = None,
 ) -> None:
     """修改配置并触发配置中心热更新。"""
-    cm = ConfigManager(_resolve_config(config))
+    cm = build_config_manager(_resolve_config(config))
     update = _nested_update(path, _parse_value(value))
     cm.save_ocr(update)
     if json_output:
@@ -146,6 +145,6 @@ def config_reset(
     ] = None,
 ) -> None:
     """恢复 schema 默认值（模型路径保留当前）。"""
-    cm = ConfigManager(_resolve_config(config))
+    cm = build_config_manager(_resolve_config(config))
     cm.save_ocr(_DEFAULTS_UPDATE)
     typer.echo("已恢复默认值，配置中心已重载")

@@ -138,7 +138,9 @@ def test_config_reset(config_manager):
 
 
 def test_ocr_text_output(monkeypatch, config_manager, tmp_path):
-    monkeypatch.setattr("cli.commands.ocr.OCRManager", FakeOCRManager)
+    monkeypatch.setattr(
+        "cli.commands.ocr.build_ocr_manager", lambda cfg: FakeOCRManager(cfg)
+    )
     img = tmp_path / "test.png"
     img.write_bytes(b"fake-image-bytes")
     result = runner.invoke(
@@ -151,7 +153,9 @@ def test_ocr_text_output(monkeypatch, config_manager, tmp_path):
 
 
 def test_ocr_json_output(monkeypatch, config_manager, tmp_path):
-    monkeypatch.setattr("cli.commands.ocr.OCRManager", FakeOCRManager)
+    monkeypatch.setattr(
+        "cli.commands.ocr.build_ocr_manager", lambda cfg: FakeOCRManager(cfg)
+    )
     img = tmp_path / "test.png"
     img.write_bytes(b"fake-image-bytes")
     result = runner.invoke(
@@ -174,7 +178,9 @@ def test_ocr_json_output(monkeypatch, config_manager, tmp_path):
 
 
 def test_ocr_missing_image(monkeypatch, config_manager, tmp_path):
-    monkeypatch.setattr("cli.commands.ocr.OCRManager", FakeOCRManager)
+    monkeypatch.setattr(
+        "cli.commands.ocr.build_ocr_manager", lambda cfg: FakeOCRManager(cfg)
+    )
     result = runner.invoke(
         app,
         [
