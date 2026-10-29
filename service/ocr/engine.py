@@ -64,7 +64,7 @@ class OCREngine:
             "loading OCR engine: spec=%s device=%s", spec.value, device.device_name
         )
         self._spec = spec
-        self._engine = RapidOCR(params=params)
+        self._engine: RapidOCR | None = RapidOCR(params=params)
 
     @property
     def spec(self) -> ModelSpec:
@@ -79,20 +79,44 @@ class OCREngine:
 
         Returns:
             ``(items, elapsed)``，items 为识别文本行列表，elapsed 为耗时（秒）。
-        """
-        result = self._engine(image_bytes)
-        if not isinstance(result, RapidOCROutput) or not result.txts:
-            return [], 0.0
-        if result.boxes is None or result.scores is None:
-            return [], 0.0
 
+        Raises:
+            RuntimeError: 引擎已通过 :meth:`close` 关闭。
+        """
+        engine = self._engine
+        if engine is None:
+            raise RuntimeError("OCR 引擎已关闭，无法识别")
+        result = engine(image_bytes)
+        if not isinstance(result, RapidOCROutput) or not result.txts:
+            return [], getattr(result, "elapse", 0.0)
+        if result.boxes is None or result.scores is None:
+            return [], getattr(result, "elapse", 0.0)
+
+        # 三元组长度应一致；不一致时取最短并告警，避免静默截断
+        n = min(len(result.boxes), len(result.txts), len(result.scores))
+        if n < len(result.txts):
+            logger.warning(
+                "OCR 结果长度不一致 boxes=%d txts=%d scores=%d，取前 %d 项",
+                len(result.boxes),
+                len(result.txts),
+                len(result.scores),
+                n,
+            )
         items: list[OCRTextItem] = [
             OCRTextItem(text=text, bbox=_to_bbox(box), score=float(score))
             for box, text, score in zip(
-                result.boxes, result.txts, result.scores, strict=False
+                result.boxes[:n], result.txts[:n], result.scores[:n], strict=True
             )
         ]
         return items, result.elapse
+
+    def close(self) -> None:
+        """释放引擎持有的资源。
+
+        受第三方限制（rapidocr 3.10.0 的 ONNX Runtime 后端无 ``close()``），
+        置空底层引用并提示 GC 回收。
+        """
+        self._engine = None
 
 
 def _to_bbox(box: Any) -> BBox:

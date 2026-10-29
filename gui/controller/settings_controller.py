@@ -10,9 +10,10 @@
 """
 
 from collections.abc import Mapping
+from typing import cast
 
 from config.manager import ConfigManager
-from config.schema import ModelMode, ModelSpec, ModelSpecPaths
+from config.schema import ModelMode, ModelSpec, ModelSpecPaths, ocr_defaults_update
 
 __all__ = ["SettingsController"]
 
@@ -119,16 +120,20 @@ class SettingsController:
         self._cm.save_ocr(self.build_update(values))
 
     def defaults(self) -> dict[str, object]:
-        """返回 schema 默认值（models 模型路径保留当前）。"""
+        """返回 schema 默认值（models 模型路径保留当前，单一来源派生）。"""
         ocr = self._cm.ocr()
+        d = ocr_defaults_update()
+        model = cast(dict[str, object], d["model"])
+        device = cast(dict[str, object], d["device"])
+        thresholds = cast(dict[str, object], d["thresholds"])
         return {
-            "mode": ModelMode.SMALL.value,
-            "default_spec": ModelSpec.SMALL.value,
-            "gpu_enabled": True,
-            "text_score": 0.5,
-            "box_thresh": 0.5,
-            "unclip_ratio": 1.6,
-            "language": "zh",
+            "mode": model["mode"],
+            "default_spec": model["default_spec"],
+            "gpu_enabled": device["gpu_enabled"],
+            "text_score": thresholds["text_score"],
+            "box_thresh": thresholds["box_thresh"],
+            "unclip_ratio": thresholds["unclip_ratio"],
+            "language": d["language"],
             "models": self._models_dict(ocr.model.models),
         }
 

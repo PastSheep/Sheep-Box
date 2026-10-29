@@ -9,7 +9,7 @@ from dataclasses import dataclass, field
 
 from config.schema import ModelSpec
 
-__all__ = ["ModelSpec", "OCRTextItem", "OCRResult", "BBox", "clean_text_items"]
+__all__ = ["BBox", "ModelSpec", "OCRResult", "OCRTextItem", "clean_text_items"]
 
 
 BBox = list[list[int | float]]

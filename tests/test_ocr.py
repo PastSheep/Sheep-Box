@@ -9,6 +9,7 @@
 
 import pytest
 
+from common.exceptions import OcrEngineError, OcrError
 from config.manager import ConfigManager
 from config.schema import ModelMode, ModelSpec
 from service.ocr import manager as manager_module
@@ -63,7 +64,17 @@ def _reset_fake():
     _constructed_specs.clear()
 
 
+def _make_model_files(tmp_path):
+    """为 M-7 模型存在校验创建真实占位文件（内容无关，FakeEngine 不读取）。"""
+    for spec in ("tiny", "small", "medium"):
+        spec_dir = tmp_path / spec
+        spec_dir.mkdir(exist_ok=True)
+        for filename in ("det.onnx", "rec.onnx", "dict.txt"):
+            (spec_dir / filename).touch()
+
+
 def _make_manager(tmp_path, mode: str) -> OCRManager:
+    _make_model_files(tmp_path)
     content = CONFIG_TEMPLATE.format(mode=mode)
     path = tmp_path / "config.yaml"
     path.write_text(content, encoding="utf-8")
@@ -139,7 +150,7 @@ def test_set_model_spec_all_mode_keeps_all(tmp_path, monkeypatch):
 def test_set_model_spec_invalid_raises(tmp_path, monkeypatch):
     _patch_engine(monkeypatch)
     manager = _make_manager(tmp_path, ModelMode.MEDIUM.value)
-    with pytest.raises(ValueError):
+    with pytest.raises(OcrError):
         manager.set_model_spec("huge")
 
 
@@ -173,3 +184,99 @@ def test_clean_text_preserves_original_text():
     # text 保持未清洗的原始拼接
     assert result.text == " 你好 \n"
     assert result.clean_text == "你好"
+
+
+def test_engine_rebuild_failure_keeps_old_state(tmp_path, monkeypatch):
+    """R-3: 引擎重建失败抛 OcrEngineError，且旧引擎保留、recognize 不 KeyError。"""
+    _patch_engine(monkeypatch)
+    manager = _make_manager(tmp_path, ModelMode.MEDIUM.value)
+    assert manager.active_spec == ModelSpec.MEDIUM
+
+    def boom(self, *args, **kwargs):
+        raise RuntimeError("simulated init failure")
+
+    monkeypatch.setattr(manager_module.OCREngine, "__init__", boom)
+    with pytest.raises(OcrEngineError):
+        manager._apply_config(force=True)
+    # 旧状态保留，识别仍可用（无 KeyError）
+    assert manager.active_spec == ModelSpec.MEDIUM
+    result = manager.recognize(b"fake-image-bytes")
+    assert len(result.items) == 1
+
+
+def test_all_mode_active_uses_default_spec(tmp_path, monkeypatch):
+    """H-1: all 模式 active 取 default_spec（而非枚举首项 tiny）。"""
+    _patch_engine(monkeypatch)
+    manager = _make_manager(tmp_path, ModelMode.ALL.value)  # default_spec=medium
+    assert manager.active_spec == ModelSpec.MEDIUM
+
+
+def test_single_mode_prefers_mode_over_default_spec(tmp_path, monkeypatch):
+    """H-1: 非 all 模式按 mode 加载（而非 default_spec）。"""
+    _patch_engine(monkeypatch)
+    _make_model_files(tmp_path)
+    content = """
+ocr:
+  model:
+    mode: tiny
+    default_spec: medium
+    models:
+      tiny:
+        det: tiny/det.onnx
+        rec: tiny/rec.onnx
+        dict_path: tiny/dict.txt
+      medium:
+        det: medium/det.onnx
+        rec: medium/rec.onnx
+        dict_path: medium/dict.txt
+  device:
+    gpu_enabled: false
+"""
+    path = tmp_path / "config.yaml"
+    path.write_text(content, encoding="utf-8")
+    manager = OCRManager(ConfigManager(path))
+    assert manager.active_spec == ModelSpec.TINY
+    assert _constructed_specs == [ModelSpec.TINY]
+
+
+def test_recognize_accepts_base64(tmp_path, monkeypatch):
+    """H-2: recognize 接受 base64 字符串输入。"""
+    import base64
+
+    _patch_engine(monkeypatch)
+    manager = _make_manager(tmp_path, ModelMode.MEDIUM.value)
+    result = manager.recognize(base64.b64encode(b"fake").decode())
+    assert len(result.items) == 1
+
+
+def test_recognize_invalid_base64_raises(tmp_path, monkeypatch):
+    """H-2: 非法 base64 输入归一化为 OcrError。"""
+    _patch_engine(monkeypatch)
+    manager = _make_manager(tmp_path, ModelMode.MEDIUM.value)
+    with pytest.raises(OcrError):
+        manager.recognize("!!not-base64!!")
+
+
+def test_recognize_engine_error_normalized(tmp_path, monkeypatch):
+    """H-2: 引擎识别异常归一化为 OcrError（不外泄底层异常）。"""
+    _patch_engine(monkeypatch)
+    manager = _make_manager(tmp_path, ModelMode.MEDIUM.value)
+
+    def boom(image_bytes):
+        raise RuntimeError("inference boom")
+
+    monkeypatch.setattr(manager_module.OCREngine, "recognize", boom)
+    with pytest.raises(OcrError):
+        manager.recognize(b"x")
+
+
+def test_build_missing_model_file_raises(tmp_path, monkeypatch):
+    """M-7: 模型文件缺失抛 OcrEngineError。"""
+    _patch_engine(monkeypatch)
+    _make_model_files(tmp_path)
+    (tmp_path / "medium" / "det.onnx").unlink()
+    path = tmp_path / "config.yaml"
+    content = CONFIG_TEMPLATE.format(mode=ModelMode.MEDIUM.value)
+    path.write_text(content, encoding="utf-8")
+    with pytest.raises(OcrEngineError):
+        OCRManager(ConfigManager(path))

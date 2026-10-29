@@ -19,7 +19,9 @@ def test_load_returns_current_values(config_manager):
     assert v["box_thresh"] == 0.5
     assert v["unclip_ratio"] == 1.6
     assert v["language"] == "zh"
-    assert set(v["models"]) == {"tiny", "small", "medium"}
+    models = v["models"]
+    assert isinstance(models, dict)
+    assert set(models) == {"tiny", "small", "medium"}
 
 
 def test_save_updates_yaml_and_reloads(config_manager):

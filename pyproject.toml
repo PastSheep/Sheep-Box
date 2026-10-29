@@ -3,12 +3,13 @@ name = "sheep-box"
 version = "0.1.0"
 description = "Sheep Box 项目"
 readme = "README.md"
-requires-python = ">=3.10"
+# 开发工具链（pre-commit/onnxruntime-directml/mypy 等）要求 Python >= 3.11
+requires-python = ">=3.11"
 dependencies = [
     # RapidOCR v3（默认推理引擎 ONNX Runtime，已集成 PP-OCRv6 三档模型路由）
     "rapidocr==3.10.0",
-    # ONNX Runtime CPU 推理后端；GPU 由下方 ocr-gpu-* extra 按平台替换
-    "onnxruntime",
+    # ONNX Runtime CPU 推理后端（固定版本）；GPU 由下方 ocr-gpu-* extra 二选一替换
+    "onnxruntime==1.24.4",
     "pyyaml==6.0.3",
     "pydantic==2.14.1",
     # GUI 设置界面（PySide6）与配置安全写回（ruamel.yaml round-trip 保留注释）
@@ -26,8 +27,9 @@ dev = [
     "pre-commit==4.7.0",
     "pytest==9.2.0",
 ]
-# GPU 加速可选后端：按部署平台二选一安装（替换默认 CPU onnxruntime）
-# 首版仅面向 Windows，默认启用 DirectML 后端
+# GPU 加速可选后端：与 base 的 onnxruntime（CPU）二选一安装，切勿并存
+# （onnxruntime / onnxruntime-directml / onnxruntime-gpu 提供同名模块，并存会冲突）。
+# 首版仅面向 Windows，默认启用 DirectML 后端。
 ocr-gpu-dml = [
     "onnxruntime-directml==1.24.4",
 ]
@@ -44,24 +46,31 @@ include = ["config*", "common*", "service*", "models*", "api*", "gui*", "cli*", 
 
 [tool.black]
 line-length = 88
-target-version = ["py310"]
+target-version = ["py311"]
 
 [tool.ruff]
 line-length = 88
-target-version = "py310"
+target-version = "py311"
 src = ["."]
 
 [tool.ruff.lint]
-select = ["E", "F", "W", "I", "UP", "B", "SIM", "C4"]
-ignore = []
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "C4", "RUF", "BLE"]
+# RUF001/002/003 对中文 docstring/注释/字符串的全角标点误报（中文使用全角标点合法），故忽略
+ignore = ["RUF001", "RUF002", "RUF003"]
 
 [tool.mypy]
-python_version = "3.10"
+python_version = "3.11"
 disallow_untyped_defs = true
 check_untyped_defs = true
 warn_return_any = true
 ignore_missing_imports = true
-exclude = ["tests/"]
+
+# 测试代码纳入 mypy 检查（可发现真实类型 bug），但不强制每个测试函数
+# 写类型标注（pytest 约定函数无需返回注解）
+[[tool.mypy.overrides]]
+module = "tests.*"
+disallow_untyped_defs = false
+check_untyped_defs = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

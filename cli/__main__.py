@@ -1,6 +1,6 @@
 """``python -m cli`` 入口。"""
 
-from cli.app import app
+from cli.app import run
 
 if __name__ == "__main__":
-    app()
+    run()

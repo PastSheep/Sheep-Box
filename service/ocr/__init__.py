@@ -6,4 +6,4 @@
 from service.ocr.manager import OCRManager
 from service.ocr.models import ModelSpec, OCRResult, OCRTextItem
 
-__all__ = ["OCRManager", "ModelSpec", "OCRResult", "OCRTextItem"]
+__all__ = ["ModelSpec", "OCRManager", "OCRResult", "OCRTextItem"]

@@ -4,6 +4,8 @@
 "恢复默认值"（写回 schema 默认）两个操作。
 """
 
+import logging
+
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -19,6 +21,8 @@ from PySide6.QtWidgets import (
 
 from config.schema import ModelMode, ModelSpec
 from gui.controller.settings_controller import SettingsController
+
+logger = logging.getLogger(__name__)
 
 __all__ = ["SettingsTab"]
 
@@ -151,15 +155,18 @@ class SettingsTab(QWidget):
         values = self._collect()
         try:
             self._controller.save(values)
-        except Exception as exc:  # noqa: BLE001 - 向用户暴露写回失败信息
+        except Exception as exc:
+            logger.exception("保存配置失败")
             self._set_status(f"保存失败: {exc}", error=True)
             return
+        self.reload_from_config()  # 从配置中心回读，展示实际生效值
         self._set_status("已保存并重载，配置中心热更新生效")
 
     def _on_restore(self) -> None:
         try:
             self._controller.restore_defaults()
-        except Exception as exc:  # noqa: BLE001 - 向用户暴露写回失败信息
+        except Exception as exc:
+            logger.exception("恢复默认值失败")
             self._set_status(f"恢复默认失败: {exc}", error=True)
             return
         self.reload_from_config()

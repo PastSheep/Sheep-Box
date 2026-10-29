@@ -6,7 +6,9 @@
 
 import typer
 
+from app.logging_config import setup_logging
 from cli.commands import config_app, ocr_cmd
+from common.exceptions import SheepBoxError
 
 app = typer.Typer(
     help="Sheep Box CLI",
@@ -20,5 +22,20 @@ app.command("ocr")(ocr_cmd)
 app.add_typer(config_app, name="config")
 
 
+def run() -> None:
+    """CLI 入口：初始化日志并执行，业务异常以错误信息 + 非零退出码结束。"""
+    setup_logging()
+    try:
+        app()
+    except typer.Exit:
+        raise
+    except SheepBoxError as exc:
+        typer.echo(f"错误: {exc}", err=True)
+        raise SystemExit(1) from exc
+    except Exception as exc:
+        typer.echo(f"未预期错误: {exc}", err=True)
+        raise SystemExit(1) from exc
+
+
 if __name__ == "__main__":
-    app()
+    run()

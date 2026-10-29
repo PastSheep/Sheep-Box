@@ -14,6 +14,7 @@
 
 import logging
 from dataclasses import dataclass
+from functools import lru_cache
 
 import onnxruntime
 
@@ -43,8 +44,12 @@ def _cpu_plan() -> DevicePlan:
     return DevicePlan(use_dml=False, use_cuda=False, device_name="cpu")
 
 
+@lru_cache(maxsize=4)
 def resolve_device(gpu_enabled: bool) -> DevicePlan:
     """根据 GPU 开关解析设备执行计划（含自动探测与 CPU 回退）。
+
+    探测结果被缓存（同一开关取值只探测一次），避免每次识别重复枚举
+    provider 并刷日志。
 
     Args:
         gpu_enabled: 用户是否启用 GPU 加速。

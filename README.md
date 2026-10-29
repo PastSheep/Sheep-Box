@@ -4,7 +4,7 @@ Sheep Box 项目。
 
 ## 环境要求
 
-- Python 3.10+
+- Python 3.11+（开发工具链与 onnxruntime-directml 均要求 3.11+）
 - 虚拟环境：`python -m venv .venv`
 
 ## 安装

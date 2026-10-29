@@ -5,15 +5,21 @@
 - **可选回退**：有默认值字段缺失 → 使用默认值。
 
 由 :mod:`config.schema` 的 pydantic 模型承载字段定义与默认值。
+
+读取使用 ruamel YAML（YAML 1.2 语义），与 :mod:`config.manager` 的写回
+保持同一 YAML 实现，避免 ``yes/no/on/off`` 等值的 1.1/1.2 解析差异
+（详见 git 记录 R-1）。
 """
 
 from pathlib import Path
 
-import yaml
 from pydantic import ValidationError
+from ruamel.yaml import YAML
 
 from common.exceptions import ConfigError
 from config.schema import AppConfig
+
+_yaml = YAML()
 
 
 def load_config(config_path: str | Path) -> AppConfig:
@@ -34,12 +40,12 @@ def load_config(config_path: str | Path) -> AppConfig:
 
     try:
         text = path.read_text(encoding="utf-8")
-    except OSError as exc:
+    except (OSError, UnicodeDecodeError) as exc:
         raise ConfigError(f"配置文件读取失败: {path} ({exc})") from exc
 
     try:
-        raw = yaml.safe_load(text)
-    except yaml.YAMLError as exc:
+        raw = _yaml.load(text)
+    except Exception as exc:
         raise ConfigError(f"配置文件 YAML 解析失败: {path} ({exc})") from exc
 
     if not isinstance(raw, dict):

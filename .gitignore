@@ -27,6 +27,13 @@ htmlcov/
 logs/
 .tmp/
 tmp/
+*.tmp
+*.bak
+
+# ---------- 打包 / 构建产物 ----------
+build/
+dist/
+*.egg-info/
 
 # ---------- OCR 模型文件（大型二进制资产，不入库；部署时下载/放置） ----------
 assets/ocr/models/**/*.onnx
