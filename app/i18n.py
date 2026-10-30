@@ -23,6 +23,14 @@ logger = logging.getLogger(__name__)
 I18N_DIR = Path(__file__).resolve().parent.parent / "assets" / "i18n"
 DEFAULT_UI_LANGUAGE = "zh_CN"
 
+#: 支持的界面语言选项（显示名, 语言代码）。仅 ``zh_CN`` 有编译好的 ``.qm``
+#: 翻译；``en`` 作为英文回退源，无需翻译文件。后续新增语言在此追加即可，
+#: 界面代码无需改动。
+SUPPORTED_UI_LANGUAGES: list[tuple[str, str]] = [
+    ("中文", "zh_CN"),
+    ("English", "en"),
+]
+
 # 持有当前 QTranslator 引用，防止被 GC 回收导致翻译失效（Qt 要求翻译器
 # 与应用同生命周期）。
 _active_translator: QTranslator | None = None
@@ -61,4 +69,31 @@ def install_ui_translator(language: str | None = None) -> bool:
         logger.info("界面语言已安装: %s", lang)
         return True
     logger.info("界面语言翻译未找到: %s（回退英文源）", lang)
+    return False
+
+
+def switch_ui_language(language: str | None = None) -> bool:
+    """切换界面语言：移除旧翻译器并安装目标语言翻译。
+
+    Args:
+        language: 目标界面语言；缺省使用 :func:`resolve_ui_language`。
+
+    Returns:
+        是否成功安装目标语言翻译；无匹配 ``.qm`` 时回退英文源并返回 ``False``。
+    """
+    from PySide6.QtCore import QTranslator
+    from PySide6.QtWidgets import QApplication
+
+    global _active_translator
+    if _active_translator is not None:
+        QApplication.removeTranslator(_active_translator)
+        _active_translator = None
+    lang = resolve_ui_language(language)
+    translator = QTranslator()
+    if translator.load(lang, str(I18N_DIR)):
+        _active_translator = translator
+        QApplication.installTranslator(translator)
+        logger.info("界面语言已切换: %s", lang)
+        return True
+    logger.info("界面语言切换为 %s（回退英文源）", lang)
     return False

@@ -68,6 +68,14 @@ def test_app_unknown_key_rejected(tmp_path):
         load_config(path)
 
 
+def test_save_app_writes_ui_language(tmp_path):
+    """save_app 写回 app.ui_language 并生效（round-trip）。"""
+    path = _write(tmp_path, VALID_YAML)
+    cm = ConfigManager(path)
+    cm.save_app({"ui_language": "en_US"})
+    assert cm.app().ui_language == "en_US"
+
+
 def test_missing_ocr_section_raises(tmp_path):
     path = _write(tmp_path, "other: 1\n")
     with pytest.raises(ConfigError):

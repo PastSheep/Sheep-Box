@@ -8,7 +8,7 @@ import os
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 import pytest
-from PySide6.QtWidgets import QApplication, QLabel, QTabWidget
+from PySide6.QtWidgets import QApplication, QComboBox, QLabel, QTabWidget
 
 from gui.view.main_window import MainWindow
 from gui.view.settings_tab import SettingsTab
@@ -33,4 +33,14 @@ def test_settings_tab_is_placeholder(qapp):
     """设置页当前为占位：只显示占位说明文字，不承载 OCR 配置表单。"""
     tab = SettingsTab()
     assert tab.findChild(QLabel) is not None
+    tab.close()
+
+
+def test_settings_tab_has_language_combo(qapp):
+    """设置页承载界面语言下拉（zh_CN / en 两个选项）。"""
+    tab = SettingsTab()
+    combo = tab.findChild(QComboBox)
+    assert combo is not None
+    assert combo.findData("zh_CN") >= 0
+    assert combo.findData("en") >= 0
     tab.close()

@@ -18,7 +18,7 @@ import threading
 from pathlib import Path
 from typing import Any
 
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 from ruamel.yaml import YAML
 
 from common.exceptions import ConfigError
@@ -126,6 +126,37 @@ class ConfigManager:
             ConfigError: 合并后的 OCR 配置不合法、或读回校验失败。
             OSError: 配置文件读写失败。
         """
+        self._write_section("ocr", OcrConfig, update)
+
+    def save_app(self, update: dict[str, object]) -> None:
+        """写回程序级偏好字段（如 ``app.ui_language``）到 config.yaml。
+
+        语义与 :meth:`save_ocr` 相同（round-trip、schema 校验、原子写回），
+        针对 ``app`` 段。
+
+        Args:
+            update: 要更新的程序偏好字段，支持嵌套字典，如
+                ``{"ui_language": "zh_CN"}``。
+
+        Raises:
+            ConfigError: 合并后的程序偏好配置不合法、或读回校验失败。
+            OSError: 配置文件读写失败。
+        """
+        self._write_section("app", AppSettingsConfig, update)
+
+    def _write_section(
+        self, section: str, model_cls: type[BaseModel], update: dict[str, object]
+    ) -> None:
+        """将 ``update`` 深度合并写入指定顶层配置段，并原子写回。
+
+        流程与失败语义与 :meth:`save_ocr` 描述一致；``section`` 为顶层段名，
+        ``model_cls`` 用于校验合并结果（``extra="forbid"`` 拒绝未知键）。
+
+        Args:
+            section: 顶层配置段名（如 ``ocr`` / ``app``）。
+            model_cls: 该段的 pydantic 模型，用于写回前校验。
+            update: 待合并字段，支持嵌套字典。
+        """
         with self._lock:
             with self.path.open("r", encoding="utf-8") as f:
                 data = _yaml.load(f)
@@ -133,14 +164,14 @@ class ConfigManager:
                 data = {}
             if not isinstance(data, dict):
                 raise ConfigError(f"配置文件顶层必须是映射结构，拒绝写入: {self.path}")
-            ocr = data.get("ocr")
-            if not isinstance(ocr, dict):
-                ocr = {}
-                data["ocr"] = ocr
-            _deep_merge(ocr, update)
+            section_data = data.get(section)
+            if not isinstance(section_data, dict):
+                section_data = {}
+                data[section] = section_data
+            _deep_merge(section_data, update)
             # 先用副本校验合并结果，未知键（extra=forbid）/非法值在此拦截
             try:
-                OcrConfig.model_validate(dict(ocr))
+                model_cls.model_validate(dict(section_data))
             except ValidationError as exc:
                 raise ConfigError(f"配置校验失败: {self.path}: {exc}") from exc
             self._atomic_write(data)

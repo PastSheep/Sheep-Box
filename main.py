@@ -14,22 +14,39 @@ handler / formatter。
 import argparse
 import logging
 import sys
+from typing import TYPE_CHECKING
 
 from app.logging_config import configure_logging
+
+if TYPE_CHECKING:
+    from config.manager import ConfigManager
 
 logger = logging.getLogger(__name__)
 
 
-def _read_ui_language() -> str | None:
-    """读取程序偏好的界面语言；config 无效时返回 None（回退默认）。
+def _build_config_manager() -> "ConfigManager | None":
+    """构建通用配置中心；config 无效时返回 None（不阻塞 GUI 启动）。
 
-    界面语言属程序偏好，config 无效不应阻塞 GUI 启动。
+    界面语言属程序偏好：config 无效时回退默认，GUI 仍可启动。
     """
     from app.bootstrap import build_config_manager
     from common.exceptions import ConfigError
 
     try:
-        return build_config_manager().app().ui_language
+        return build_config_manager()
+    except ConfigError:
+        logger.warning("配置读取失败，界面语言偏好不做持久化", exc_info=True)
+        return None
+
+
+def _read_ui_language(config_manager: "ConfigManager | None") -> str | None:
+    """从配置读取界面语言；config 无效时返回 None（回退默认 zh_CN）。"""
+    from common.exceptions import ConfigError
+
+    if config_manager is None:
+        return None
+    try:
+        return config_manager.app().ui_language
     except ConfigError:
         logger.warning("读取界面语言失败，回退默认 zh_CN", exc_info=True)
         return None
@@ -55,7 +72,8 @@ def main() -> int:
     # GUI 分支延迟导入：无头模式与配置命令不加载 PySide6 / GUI 栈
     from gui.view.main_window import run_gui
 
-    return run_gui(_read_ui_language())
+    config_manager = _build_config_manager()
+    return run_gui(_read_ui_language(config_manager), config_manager)
 
 
 if __name__ == "__main__":

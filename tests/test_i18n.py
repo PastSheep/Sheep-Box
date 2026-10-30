@@ -10,7 +10,7 @@
 import os
 
 import pytest
-from PySide6.QtWidgets import QApplication, QLabel, QTabWidget
+from PySide6.QtWidgets import QApplication, QComboBox, QLabel, QTabWidget
 
 from app.i18n import I18N_DIR, install_ui_translator, resolve_ui_language
 from gui.view.main_window import MainWindow
@@ -54,8 +54,24 @@ def test_ui_text_translated_to_zh_CN(qapp):
     assert tabs is not None
     tab0 = tabs.widget(0)
     assert tab0 is not None
-    label = tab0.findChild(QLabel)
-    assert label is not None
+    labels = tab0.findChildren(QLabel)
+    assert any("暂无可用设置项" in lab.text() for lab in labels)
     assert window.windowTitle() == "Sheep Box 设置"
     assert tabs.tabText(0) == "设置"
-    assert "暂无可用设置项" in label.text()
+
+
+def test_switch_language_updates_ui(qapp):
+    """切换到 English 后，界面文本回退英文源（en 无 .qm）。"""
+    assert install_ui_translator("zh_CN") is True
+    window = MainWindow(config_manager=None)
+    tabs = window.findChild(QTabWidget)
+    assert tabs is not None
+    tab0 = tabs.widget(0)
+    assert tab0 is not None
+    combo = tab0.findChild(QComboBox)
+    assert combo is not None
+    assert window.windowTitle() == "Sheep Box 设置"
+    combo.setCurrentIndex(combo.findData("en"))
+    assert window.windowTitle() == "Sheep Box Settings"
+    assert tabs.tabText(0) == "Settings"
+    window.close()
