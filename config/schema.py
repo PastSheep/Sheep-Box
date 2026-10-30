@@ -3,7 +3,9 @@
 使用 pydantic 声明式定义配置结构：
 - 无默认值的字段为**必填**，缺失时严格报错；
 - 有默认值的字段为**可选**，缺失时回退默认值；
-- 所有模型默认 ``extra="forbid"``：未知键直接报错，防止配置被静默写坏。
+- 所有模型默认 ``extra="forbid"``：未知键直接报错，防止配置被静默写坏；
+- ``OcrModelConfig`` 要求 tiny/small/medium 三档模型路径齐全，缺档直接报错；
+- 识别阈值带取值范围约束（概率 0~1、扩张比例 >0），越界直接报错。
 
 该模块面向整个项目的通用配置中心，OCR 是当前首个业务模块，
 后续其他模块配置在此扩展对应 Schema。
@@ -20,10 +22,6 @@ class ModelSpec(StrEnum):
     TINY = "tiny"
     SMALL = "small"
     MEDIUM = "medium"
-
-
-# 模型档位全集；用于校验 models 覆盖度（定义于 ModelSpec 之后）
-_REQUIRED_SPECS = (ModelSpec.TINY, ModelSpec.SMALL, ModelSpec.MEDIUM)
 
 
 class ModelMode(StrEnum):
@@ -72,17 +70,21 @@ class OcrModelConfig(BaseModel):
 
     @model_validator(mode="after")
     def _check_models_coverage(self) -> "OcrModelConfig":
-        """校验实际会加载的模型档位存在（修复构造期 KeyError）。
+        """校验 tiny/small/medium 三档模型路径均已配置。
 
-        - 非 all 模式：所需档 = ``mode`` 对应的单规格；
-        - all 模式：需要 tiny/small/medium 全部档位。
+        三档必须齐全：即使当前 ``mode`` 只加载单档，运行时也可能切换档位或
+        切到 ``all`` 模式；缺档只会在推理阶段以 ``KeyError`` 暴露，故前移到
+        配置校验阶段直接拒绝。
+
+        Returns:
+            校验通过的模型配置自身。
+
+        Raises:
+            ValueError: 存在缺失档位；pydantic 会将其包装为
+                ``ValidationError``，再由 :mod:`config.loader` 归一化为
+                :class:`common.exceptions.ConfigError`。
         """
-        required = (
-            set(_REQUIRED_SPECS)
-            if self.mode == ModelMode.ALL
-            else {ModelSpec(self.mode.value)}
-        )
-        missing = [spec.value for spec in required if spec not in self.models]
+        missing = sorted(spec.value for spec in set(ModelSpec) - set(self.models))
         if missing:
             raise ValueError("模型档位缺失，无法加载: 缺少 " + ", ".join(missing))
         return self
@@ -142,21 +144,16 @@ class AppConfig(BaseModel):
 
 
 def ocr_defaults_update() -> dict[str, object]:
-    """返回 OCR 段可恢复的默认值（单一来源，供 CLI/GUI「恢复默认」派生）。
+    """返回 OCR 段可恢复的默认值（向后兼容入口）。
 
-    仅包含可恢复的运行参数（mode/default_spec/device/thresholds/language），
-    不包含 ``models``（模型路径应保留当前值，避免误覆盖）。
+    默认值定义已收敛到 :mod:`config.defaults`，本函数仅保留旧导入路径
+    ``from config.schema import ocr_defaults_update``，新代码请改用
+    :func:`config.defaults.ocr_defaults_update`。函数内延迟导入：``config.defaults``
+    依赖本模块的 pydantic 模型，模块顶部导入会构成循环依赖。
+
+    Returns:
+        嵌套 update 字典，可直接传给 :meth:`ConfigManager.save_ocr`。
     """
-    return {
-        "model": {
-            "mode": OcrModelConfig.model_fields["mode"].default.value,
-            "default_spec": OcrModelConfig.model_fields["default_spec"].default.value,
-        },
-        "device": {"gpu_enabled": OcrDeviceConfig.model_fields["gpu_enabled"].default},
-        "thresholds": {
-            "text_score": OcrThresholdConfig.model_fields["text_score"].default,
-            "box_thresh": OcrThresholdConfig.model_fields["box_thresh"].default,
-            "unclip_ratio": OcrThresholdConfig.model_fields["unclip_ratio"].default,
-        },
-        "language": OcrConfig.model_fields["language"].default,
-    }
+    from config.defaults import ocr_defaults_update as _ocr_defaults_update
+
+    return _ocr_defaults_update()

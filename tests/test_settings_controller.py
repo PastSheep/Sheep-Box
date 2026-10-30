@@ -146,3 +146,22 @@ def test_save_roundtrip_keeps_comment(config_manager):
     c.save({**current, "mode": "tiny"})
     text = cfg.read_text(encoding="utf-8")
     assert "# 顶部说明注释" in text  # round-trip 保留注释
+
+
+def test_defaults_match_single_source(config_manager):
+    """M: GUI 默认值与 CLI reset 同源（config.defaults），无重复字面量。"""
+    from config.defaults import ocr_defaults_update
+
+    c = SettingsController(config_manager)
+    defaults = c.defaults()
+    source = ocr_defaults_update()
+    assert defaults["mode"] == source["model"]["mode"]
+    assert defaults["default_spec"] == source["model"]["default_spec"]
+    assert defaults["gpu_enabled"] == source["device"]["gpu_enabled"]
+    assert defaults["text_score"] == source["thresholds"]["text_score"]
+    assert defaults["box_thresh"] == source["thresholds"]["box_thresh"]
+    assert defaults["unclip_ratio"] == source["thresholds"]["unclip_ratio"]
+    assert defaults["language"] == source["language"]
+    models = defaults["models"]
+    assert isinstance(models, dict)
+    assert set(models) == {"tiny", "small", "medium"}

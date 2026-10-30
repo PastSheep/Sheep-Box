@@ -10,8 +10,10 @@
 不直接访问文件，保证单一配置来源。
 """
 
+import logging
 import os
 import shutil
+import tempfile
 import threading
 from pathlib import Path
 from typing import Any
@@ -22,6 +24,8 @@ from ruamel.yaml import YAML
 from common.exceptions import ConfigError
 from config.loader import load_config
 from config.schema import AppConfig, OcrConfig
+
+logger = logging.getLogger(__name__)
 
 _yaml = YAML()
 
@@ -58,26 +62,43 @@ class ConfigManager:
     def reload(self) -> None:
         """强制重新加载并校验配置。
 
+        重载失败时保留上一次成功的配置缓存（``_config`` 与 ``_mtime`` 均不
+        更新），记录告警后原样抛出，避免调用方读到半新半旧的配置。
+
         Raises:
             ConfigError: 配置读取或校验失败。
+            OSError: 配置文件状态读取失败。
         """
         with self._lock:
-            self._config = load_config(self.path)
-            self._mtime = self.path.stat().st_mtime_ns
+            try:
+                config = load_config(self.path)
+                mtime = self.path.stat().st_mtime_ns
+            except (ConfigError, OSError):
+                logger.warning("config reload failed: %s", self.path, exc_info=True)
+                raise
+            self._config = config
+            self._mtime = mtime
 
     def _refresh_if_changed(self) -> bool:
         """检测配置变更，若文件被修改则热更新重载。
 
+        文件在 ``exists()`` 与 ``stat()`` 之间被删除时（TOCTOU），视作未变化
+        返回 False，避免把 ``FileNotFoundError`` 泄漏给配置读取方。
+
         Returns:
             是否发生了重载。
         """
-        if not self.path.exists():
+        with self._lock:
+            if not self.path.exists():
+                return False
+            try:
+                new_mtime = self.path.stat().st_mtime_ns
+            except OSError:
+                return False
+            if new_mtime != self._mtime:
+                self.reload()
+                return True
             return False
-        new_mtime = self.path.stat().st_mtime_ns
-        if new_mtime != self._mtime:
-            self.reload()
-            return True
-        return False
 
     def get(self) -> AppConfig:
         """获取完整配置（访问前自动检测热更新）。
@@ -94,7 +115,8 @@ class ConfigManager:
 
         仅更新 ``update`` 中提供的字段，未提供的字段保持不变；写回前先用
         schema 校验（``extra="forbid"`` 会拒绝未知键）。写回采用
-        "临时文件 → 回读校验 → 原子替换" 流程，失败保留旧文件。
+        "临时文件 → 回读校验 → 备份 → 原子替换 → 重载" 流程，任何一步失败
+        都不改变原 config.yaml。
 
         Args:
             update: 要更新的 OCR 配置字段，支持嵌套字典，如
@@ -120,26 +142,64 @@ class ConfigManager:
             try:
                 OcrConfig.model_validate(dict(ocr))
             except ValidationError as exc:
-                raise ConfigError(f"配置写回校验失败: {self.path}: {exc}") from exc
+                raise ConfigError(f"配置校验失败: {self.path}: {exc}") from exc
+            self._atomic_write(data)
 
-            # 原子写：临时文件 → 回读校验 → 备份旧文件 → os.replace
-            tmp = self.path.with_suffix(self.path.suffix + ".tmp")
-            bak = self.path.with_suffix(self.path.suffix + ".bak")
-            try:
-                with tmp.open("w", encoding="utf-8") as f:
-                    _yaml.dump(data, f)
-                load_config(tmp)  # 回读校验，语义与最终加载一致
-            except Exception:
-                tmp.unlink(missing_ok=True)
-                raise
-            # 备份上一版本（供异常恢复），再原子替换
-            try:
-                with self.path.open("rb") as src, bak.open("wb") as dst:
-                    shutil.copyfileobj(src, dst)
-            except FileNotFoundError:
-                pass
-            os.replace(tmp, self.path)
+    def _atomic_write(self, data: dict[Any, Any]) -> None:
+        """原子写回完整配置，任何失败都不破坏原文件。
+
+        流程：写同目录临时文件 → ``load_config`` 回读校验 → 备份旧文件为
+        ``<name>.bak`` → ``os.replace`` 原子替换 → 重载。临时文件失败时清理；
+        已替换后重载失败时用备份回滚，保证 config.yaml 不会停留在半写状态。
+
+        Args:
+            data: 待写回的完整配置映射（round-trip 结构，保留注释与键顺序）。
+
+        Raises:
+            ConfigError: 回读校验失败。
+            OSError: 文件读写失败。
+        """
+        bak_path = self.path.with_name(self.path.name + ".bak")
+        tmp_path: Path | None = None
+        replaced = False
+        try:
+            with tempfile.NamedTemporaryFile(
+                mode="w",
+                encoding="utf-8",
+                delete=False,
+                dir=self.path.parent,
+                suffix=".tmp",
+            ) as tmp_file:
+                tmp_path = Path(tmp_file.name)
+                _yaml.dump(data, tmp_file)
+            load_config(tmp_path)  # 回读校验，保证落盘内容与正常加载语义一致
+            if self.path.exists():
+                shutil.copy2(self.path, bak_path)
+            os.replace(tmp_path, self.path)
+            tmp_path = None  # 已原子替换，临时文件不再存在
+            replaced = True
             self.reload()
+        except BaseException:
+            if tmp_path is not None:
+                tmp_path.unlink(missing_ok=True)
+            if replaced:
+                self._restore_backup(bak_path)
+            raise
+
+    def _restore_backup(self, bak_path: Path) -> None:
+        """用备份回滚已替换的配置文件（仅在替换后重载失败时调用）。
+
+        回滚失败只记录告警，不掩盖触发回滚的原始异常。
+
+        Args:
+            bak_path: 旧配置备份路径。
+        """
+        if not bak_path.exists():
+            return
+        try:
+            os.replace(bak_path, self.path)
+        except OSError:
+            logger.warning("config rollback failed: %s", self.path, exc_info=True)
 
     def ocr(self) -> OcrConfig:
         """获取 OCR 模块配置。

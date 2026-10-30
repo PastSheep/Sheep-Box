@@ -20,14 +20,22 @@ pip install -e ".[dev]"
 pre-commit install
 ```
 
-> **GPU 加速（首版 Windows，默认启用）**：默认开启 GPU（DirectML），
-> 需按部署平台安装对应后端（替换默认 CPU onnxruntime）：
+> **GPU 加速（首版 Windows，默认启用）**：默认开启 GPU（DirectML），需按部署平台
+> 安装对应后端。CPU 包与 GPU 包**互斥**，dml / cuda **二选一，禁止同时安装**。
+>
+> 注意 pip 的 extras 是**并集**而非替换：安装 GPU extra 会同时装上 base 的 CPU
+> `onnxruntime`，而 `onnxruntime` / `onnxruntime-directml` / `onnxruntime-gpu`
+> 提供**同名顶层模块**，并存会互相覆盖、行为不可预期。安装 GPU extra 后必须
+> 卸载 CPU 包（或使用干净环境只装 GPU 包）：
 >
 > ```bash
 > # Windows：支持 AMD / NVIDIA / Intel 显卡（DirectML，默认启用）
-> pip install -e ".[ocr-gpu-dml]"
-> # Linux / NVIDIA：CUDA 后端
-> pip install -e ".[ocr-gpu-cuda]"
+> pip install -e ".[dev,ocr-gpu-dml]"
+> pip uninstall -y onnxruntime  # 必须：CPU 包与 GPU 包互斥，避免同名模块冲突
+>
+> # Linux / NVIDIA：CUDA 后端（与 DirectML 二选一）
+> pip install -e ".[dev,ocr-gpu-cuda]"
+> pip uninstall -y onnxruntime
 > ```
 >
 > 未安装 GPU 后端或探测失败时，程序自动回退 CPU（内部处理，无需手动配置）。
@@ -49,7 +57,7 @@ main.py         项目启动入口
 
 ## OCR 模块
 
-仅实现模块本体（字节流输入、结构化输出），实际输入输出链路由后续开发接入。
+仅实现模块本体（字节流 / base64 输入、结构化输出），实际输入输出链路由后续开发接入。
 
 ```python
 from config.manager import ConfigManager
@@ -57,7 +65,7 @@ from service.ocr import OCRManager
 
 manager = OCRManager(ConfigManager("config/config.yaml"))
 
-# 字节流输入 → 结构化结果
+# 字节流 / base64 输入 → 结构化结果（base64 支持 "data:image/png;base64,..." 前缀）
 result = manager.recognize(image_bytes)   # bytes 或 base64 字符串
 result.items                              # [OCRTextItem(text, bbox, score)]
 result.text                               # 按行拼接的纯文本
@@ -89,9 +97,9 @@ python main.py --no-gui
 # 单图识别：默认文本输出；--json 输出结构化结果；--spec 热切换规格
 python -m cli ocr <图片> [--spec tiny|small|medium] [--json]
 
-# 配置读写：点路径（如 model.mode）；写回后配置中心热更新自动生效
-python -m cli config get [path] [--json]
-python -m cli config set <path> <value>
+# 配置读写：点路径相对 ocr 段（如 model.mode，不是 ocr.model.mode）
+python -m cli config get model.mode [--json]
+python -m cli config set model.mode tiny
 python -m cli config list [--json]
 python -m cli config reset
 ```

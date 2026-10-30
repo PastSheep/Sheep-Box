@@ -10,7 +10,6 @@ dependencies = [
     "rapidocr==3.10.0",
     # ONNX Runtime CPU 推理后端（固定版本）；GPU 由下方 ocr-gpu-* extra 二选一替换
     "onnxruntime==1.24.4",
-    "pyyaml==6.0.3",
     "pydantic==2.14.1",
     # GUI 设置界面（PySide6）与配置安全写回（ruamel.yaml round-trip 保留注释）
     "PySide6==6.12.0",
@@ -27,8 +26,11 @@ dev = [
     "pre-commit==4.7.0",
     "pytest==9.2.0",
 ]
-# GPU 加速可选后端：与 base 的 onnxruntime（CPU）二选一安装，切勿并存
-# （onnxruntime / onnxruntime-directml / onnxruntime-gpu 提供同名模块，并存会冲突）。
+# GPU 加速可选后端：dml / cuda 二选一，禁止同时安装。
+# 注意 pip 的 extras 是**并集**而非替换：安装下列任一 GPU extra 会同时装上 base
+# 的 onnxruntime（CPU），而 onnxruntime / onnxruntime-directml / onnxruntime-gpu
+# 提供同名顶层模块，并存会互相覆盖、行为不可预期。因此安装 GPU extra 后需
+# `pip uninstall -y onnxruntime`（或使用干净环境只装 GPU 包）以消除同名冲突。
 # 首版仅面向 Windows，默认启用 DirectML 后端。
 ocr-gpu-dml = [
     "onnxruntime-directml==1.24.4",

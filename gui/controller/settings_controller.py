@@ -12,8 +12,9 @@
 from collections.abc import Mapping
 from typing import cast
 
+from config.defaults import ocr_defaults_update
 from config.manager import ConfigManager
-from config.schema import ModelMode, ModelSpec, ModelSpecPaths, ocr_defaults_update
+from config.schema import ModelMode, ModelSpec, ModelSpecPaths
 
 __all__ = ["SettingsController"]
 
@@ -138,5 +139,5 @@ class SettingsController:
         }
 
     def restore_defaults(self) -> None:
-        """写回 schema 默认值（models 模型路径保留当前）。"""
-        self._cm.save_ocr(self.build_update(self.defaults()))
+        """写回 schema 默认值（models 模型路径保留当前，单一来源派生）。"""
+        self._cm.save_ocr(ocr_defaults_update())

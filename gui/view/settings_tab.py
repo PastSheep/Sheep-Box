@@ -156,7 +156,7 @@ class SettingsTab(QWidget):
         try:
             self._controller.save(values)
         except Exception as exc:
-            logger.exception("保存配置失败")
+            logger.exception("保存设置失败")
             self._set_status(f"保存失败: {exc}", error=True)
             return
         self.reload_from_config()  # 从配置中心回读，展示实际生效值
@@ -166,7 +166,7 @@ class SettingsTab(QWidget):
         try:
             self._controller.restore_defaults()
         except Exception as exc:
-            logger.exception("恢复默认值失败")
+            logger.exception("恢复默认设置失败")
             self._set_status(f"恢复默认失败: {exc}", error=True)
             return
         self.reload_from_config()
