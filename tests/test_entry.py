@@ -1,7 +1,7 @@
 """入口、全局日志与延迟导入契约测试。
 
 覆盖：
-- ``main.py`` 返回码：``--no-gui`` 为 0，GUI 配置无效为 2，成功透传 ``run_gui``；
+- ``main.py`` 返回码：``--no-gui`` 为 0，成功透传 ``run_gui``；
 - 全局日志配置单一来源且不修改模块级 ``LOG_CONFIG``；
 - ``import cli.app`` / ``import app.bootstrap`` 不加载重量依赖（无 GUI / OCR 栈）。
 """
@@ -13,7 +13,6 @@ from pathlib import Path
 
 import main as main_module
 from app.logging_config import LOG_CONFIG, configure_logging
-from common.exceptions import ConfigError
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
@@ -36,29 +35,12 @@ def test_no_gui_returns_zero(monkeypatch):
     assert main_module.main() == 0
 
 
-def test_gui_config_error_returns_2_and_calls_fallback(monkeypatch):
-    monkeypatch.setattr(main_module, "configure_logging", lambda: None)
-    monkeypatch.setattr(sys, "argv", ["main.py"])
-    shown: list[str] = []
-    monkeypatch.setattr(main_module, "_show_startup_error", shown.append)
-
-    def boom(config_path: object = None) -> None:
-        raise ConfigError("bad config")
-
-    monkeypatch.setattr("app.bootstrap.build_settings_controller", boom)
-    assert main_module.main() == 2
-    assert len(shown) == 1
-
-
 def test_gui_success_returns_run_gui_code(monkeypatch):
     monkeypatch.setattr(main_module, "configure_logging", lambda: None)
     monkeypatch.setattr(sys, "argv", ["main.py"])
-    monkeypatch.setattr(
-        "app.bootstrap.build_settings_controller", lambda config_path=None: object()
-    )
     import gui.view.main_window as main_window_module
 
-    monkeypatch.setattr(main_window_module, "run_gui", lambda controller: 7)
+    monkeypatch.setattr(main_window_module, "run_gui", lambda: 7)
     assert main_module.main() == 7
 
 

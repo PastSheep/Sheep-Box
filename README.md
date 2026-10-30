@@ -75,7 +75,7 @@ manager.set_model_spec("tiny")
 ```
 
 - 模型规格：PP-OCRv6 `ocr.model.mode`（tiny/small/medium/all），默认 `small`；非 `all` 时只同时加载一个规格实例；
-- 设备：`ocr.device.gpu_enabled`（GPU 开关，首版 Windows 默认启用），自动探测 + CPU 回退由程序内部处理；
+- 设备：无用户开关，GPU 自动探测 + CPU 回退由程序内部处理（`service/ocr/device.py`）；
 - 配置热更新：修改 `config/config.yaml` 后自动生效，无需重启。
 
 ## GUI 与 CLI 入口

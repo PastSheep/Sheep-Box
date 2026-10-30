@@ -25,8 +25,6 @@ ocr:
         rec: m/rec.onnx
         dict_path: m/dict.txt
         cls: m/cls.onnx
-  device:
-    gpu_enabled: true
   thresholds:
     text_score: 0.5
     box_thresh: 0.5

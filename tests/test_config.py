@@ -28,8 +28,6 @@ ocr:
         rec: assets/ocr/models/medium/rec.onnx
         dict_path: assets/ocr/models/medium/dict.txt
         cls: assets/ocr/models/medium/cls.onnx
-  device:
-    gpu_enabled: false
 """
 
 
@@ -44,7 +42,6 @@ def test_load_valid_config(tmp_path):
     cfg = load_config(path)
     assert cfg.ocr.model.mode.value == "medium"
     assert cfg.ocr.model.default_spec.value == "medium"
-    assert cfg.ocr.device.gpu_enabled is False
     assert cfg.ocr.language == "zh"
 
 
@@ -107,8 +104,7 @@ ocr:
 """
     path = _write(tmp_path, content)
     cfg = load_config(path)
-    # 未提供 device / thresholds / mode，均回退默认值
-    assert cfg.ocr.device.gpu_enabled is True  # 首版默认启用 GPU
+    # 未提供 thresholds / mode，均回退默认值
     assert cfg.ocr.thresholds.text_score == 0.5
     assert cfg.ocr.model.mode.value == "small"  # 默认规格为 small
     assert cfg.ocr.model.default_spec.value == "small"
@@ -123,13 +119,13 @@ def test_missing_file_raises():
 def test_hot_reload_on_change(tmp_path):
     path = _write(tmp_path, VALID_YAML)
     manager = ConfigManager(path)
-    assert manager.ocr().device.gpu_enabled is False
+    assert manager.ocr().model.mode.value == "medium"
 
     # 修改配置并强制更新时间戳
-    updated = VALID_YAML.replace("gpu_enabled: false", "gpu_enabled: true")
+    updated = VALID_YAML.replace("mode: medium", "mode: tiny")
     _write(tmp_path, updated)
     # 访问时自动检测变更并热更新
-    assert manager.ocr().device.gpu_enabled is True
+    assert manager.ocr().model.mode.value == "tiny"
 
 
 def test_save_ocr_yaml_12_semantics(tmp_path):
@@ -179,11 +175,7 @@ def test_schema_rejects_unknown_top_level_key(tmp_path):
 
 def test_schema_rejects_out_of_range_threshold(tmp_path):
     """H-6: 阈值超出合法范围（text_score>1 / unclip_ratio<=0）被拒绝。"""
-    content = VALID_YAML.replace(
-        "  device:\n    gpu_enabled: false",
-        "  device:\n    gpu_enabled: false\n"
-        "  thresholds:\n    text_score: 1.5\n    unclip_ratio: 0",
-    )
+    content = VALID_YAML + "\n  thresholds:\n    text_score: 1.5\n    unclip_ratio: 0\n"
     path = _write(tmp_path, content)
     with pytest.raises(ConfigError):
         load_config(path)

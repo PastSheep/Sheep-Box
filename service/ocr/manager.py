@@ -168,7 +168,7 @@ class OCRManager:
         ocr_cfg = self._config_manager.ocr()
         mode = ocr_cfg.model.mode
         default_spec = ocr_cfg.model.default_spec
-        device = resolve_device(ocr_cfg.device.gpu_enabled)
+        device = resolve_device()
 
         changed = (
             force

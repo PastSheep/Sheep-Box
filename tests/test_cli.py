@@ -67,16 +67,15 @@ def test_config_get_whole(config_manager):
     result = runner.invoke(app, ["config", "get", "--config", str(config_manager.path)])
     assert result.exit_code == 0
     assert "mode: small" in result.stdout
-    assert "gpu_enabled: True" in result.stdout
 
 
 def test_config_get_path(config_manager):
     result = runner.invoke(
         app,
-        ["config", "get", "device.gpu_enabled", "--config", str(config_manager.path)],
+        ["config", "get", "model.default_spec", "--config", str(config_manager.path)],
     )
     assert result.exit_code == 0
-    assert "device.gpu_enabled: True" in result.stdout
+    assert "model.default_spec: small" in result.stdout
 
 
 def test_config_get_json(config_manager):
@@ -114,14 +113,14 @@ def test_config_set_parses_types(config_manager):
         [
             "config",
             "set",
-            "device.gpu_enabled",
-            "false",
+            "thresholds.unclip_ratio",
+            "2",
             "--config",
             str(config_manager.path),
         ],
     )
     cm = ConfigManager(config_manager.path)
-    assert cm.ocr().device.gpu_enabled is False
+    assert cm.ocr().thresholds.unclip_ratio == 2.0
 
 
 def test_config_set_invalid_rejected(config_manager):
@@ -144,7 +143,6 @@ def test_config_reset(config_manager):
     assert "已恢复默认值" in result.stdout
     cm = ConfigManager(config_manager.path)
     assert cm.ocr().model.mode.value == "small"
-    assert cm.ocr().device.gpu_enabled is True
 
 
 def test_config_get_missing_path_exit_2(config_manager):
@@ -259,7 +257,6 @@ def test_config_reset_uses_single_source_defaults(config_manager):
     defaults = ocr_defaults_update()
     assert cm.ocr().model.mode.value == defaults["model"]["mode"]
     assert cm.ocr().model.default_spec.value == defaults["model"]["default_spec"]
-    assert cm.ocr().device.gpu_enabled == defaults["device"]["gpu_enabled"]
     assert cm.ocr().thresholds.text_score == defaults["thresholds"]["text_score"]
     assert cm.ocr().language == defaults["language"]
 

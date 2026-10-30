@@ -21,7 +21,7 @@
 
 ## 设备后端
 
-- 仅暴露 `gpu_enabled` 布尔开关；自动探测与 CPU 回退全部在程序内部（`service/ocr/device.py`）。
+- 无用户开关：GPU 自动探测与 CPU 回退全部在程序内部（`service/ocr/device.py`）。
 - **CPU 包与 GPU 包互斥**：`onnxruntime`（base，CPU）与 `onnxruntime-directml` / `onnxruntime-gpu` 提供同名顶层模块，不能并存；dml / cuda **二选一，禁止同时安装**。
 - 注意 pip extras 是**并集**：安装 `.[ocr-gpu-dml]` / `.[ocr-gpu-cuda]` 会同时装上 base 的 CPU 包，安装后需 `pip uninstall -y onnxruntime`（或使用干净环境只装 GPU 包）。
 - GPU 首版仅 Windows，默认启用 DirectML（`onnxruntime-directml` 单包内含 CPU+GPU 两个 ExecutionProvider，**不会导致 CPU 不可用**；CPU 统一走 `CPUExecutionProvider`，品牌无关）。

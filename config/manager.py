@@ -120,7 +120,7 @@ class ConfigManager:
 
         Args:
             update: 要更新的 OCR 配置字段，支持嵌套字典，如
-                ``{"model": {"mode": "tiny"}, "device": {"gpu_enabled": True}}``。
+                ``{"model": {"mode": "tiny"}}``。
 
         Raises:
             ConfigError: 合并后的 OCR 配置不合法、或读回校验失败。

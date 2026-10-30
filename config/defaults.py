@@ -12,7 +12,6 @@ from config.schema import (
     ModelMode,
     ModelSpec,
     OcrConfig,
-    OcrDeviceConfig,
     OcrThresholdConfig,
 )
 
@@ -22,7 +21,7 @@ __all__ = ["ocr_defaults_update"]
 def ocr_defaults_update() -> dict[str, Any]:
     """返回 OCR 配置段的默认值（嵌套 update 字典，可直接传给 ConfigManager.save_ocr）。
 
-    仅包含可恢复的运行参数（mode/default_spec/device/thresholds/language），
+    仅包含可恢复的运行参数（mode/default_spec/thresholds/language），
     不包含 ``models``：模型路径属于部署相关配置，应保留当前值，避免「恢复
     默认」把用户的模型路径重置成默认值。
 
@@ -31,7 +30,6 @@ def ocr_defaults_update() -> dict[str, Any]:
 
             {
                 "model": {"mode": "small", "default_spec": "small"},
-                "device": {"gpu_enabled": True},
                 "thresholds": {
                     "text_score": 0.5,
                     "box_thresh": 0.5,
@@ -45,7 +43,6 @@ def ocr_defaults_update() -> dict[str, Any]:
             "mode": ModelMode.SMALL.value,
             "default_spec": ModelSpec.SMALL.value,
         },
-        "device": {"gpu_enabled": OcrDeviceConfig().gpu_enabled},
         "thresholds": OcrThresholdConfig().model_dump(),
         "language": OcrConfig.model_fields["language"].default,
     }

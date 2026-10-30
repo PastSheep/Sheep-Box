@@ -13,13 +13,11 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:  # 仅类型检查时导入，避免运行时加载重量依赖
     from config.manager import ConfigManager
-    from gui.controller.settings_controller import SettingsController
     from service.ocr.manager import OCRManager
 
 __all__ = [
     "build_config_manager",
     "build_ocr_manager",
-    "build_settings_controller",
     "default_config_path",
 ]
 
@@ -51,15 +49,3 @@ def build_ocr_manager(config_path: str | Path | None = None) -> "OCRManager":
     from service.ocr.manager import OCRManager
 
     return OCRManager(build_config_manager(config_path))
-
-
-def build_settings_controller(
-    config_path: str | Path | None = None,
-) -> "SettingsController":
-    """构建设置界面控制器（复用配置中心，无 Qt 依赖）。
-
-    延迟导入 GUI 栈：``python -m cli`` 等无 GUI 场景不加载 PySide6。
-    """
-    from gui.controller.settings_controller import SettingsController
-
-    return SettingsController(build_config_manager(config_path))

@@ -90,19 +90,6 @@ class OcrModelConfig(BaseModel):
         return self
 
 
-class OcrDeviceConfig(BaseModel):
-    """OCR 运行设备配置。
-
-    仅暴露 GPU 加速开关；自动探测与 CPU 回退由程序内部处理。
-    首版仅面向 Windows：默认启用 GPU（需安装 DirectML 后端，
-    ``onnxruntime-directml``），未安装或探测失败时自动回退 CPU。
-    """
-
-    model_config = ConfigDict(extra="forbid")
-
-    gpu_enabled: bool = Field(default=True, description="是否启用 GPU 加速")
-
-
 class OcrThresholdConfig(BaseModel):
     """OCR 识别阈值配置。"""
 
@@ -123,9 +110,6 @@ class OcrConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     model: OcrModelConfig = Field(..., description="模型加载配置，必填")
-    device: OcrDeviceConfig = Field(
-        default_factory=OcrDeviceConfig, description="设备配置"
-    )
     thresholds: OcrThresholdConfig = Field(
         default_factory=OcrThresholdConfig, description="识别阈值配置"
     )

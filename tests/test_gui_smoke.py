@@ -1,6 +1,6 @@
 """GUI 无头冒烟测试（QT_QPA_PLATFORM=offscreen）。
 
-验证主窗口能实例化、含"设置"标签页，且设置表单保存能写回配置。
+验证主窗口能实例化、含"设置"标签页（当前为占位页，不承载 OCR 配置）。
 """
 
 import os
@@ -8,9 +8,8 @@ import os
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 import pytest
-from PySide6.QtWidgets import QApplication, QTabWidget
+from PySide6.QtWidgets import QApplication, QLabel, QTabWidget
 
-from gui.controller.settings_controller import SettingsController
 from gui.view.main_window import MainWindow
 from gui.view.settings_tab import SettingsTab
 
@@ -21,8 +20,8 @@ def qapp():
     yield app
 
 
-def test_main_window_hosts_settings_tab(qapp, config_manager):
-    win = MainWindow(SettingsController(config_manager))
+def test_main_window_hosts_settings_tab(qapp):
+    win = MainWindow()
     tabs = win.centralWidget()
     assert isinstance(tabs, QTabWidget)
     assert tabs.count() == 1
@@ -31,39 +30,8 @@ def test_main_window_hosts_settings_tab(qapp, config_manager):
     win.close()
 
 
-def test_settings_tab_loads_and_saves(qapp, config_manager):
-    controller = SettingsController(config_manager)
-    tab = SettingsTab(controller)
-    # 修改表单并触发"保存并重载"
-    tab._mode_combo.setCurrentText("medium")
-    tab._gpu_check.setChecked(False)
-    tab._save_btn.click()
-    reloaded = controller.load()
-    assert reloaded["mode"] == "medium"
-    assert reloaded["gpu_enabled"] is False
-    # 状态标签应显示成功文案
-    assert "已保存并重载" in tab._status_label.text()
-    tab.close()
-
-
-def test_settings_tab_restore_defaults(qapp, config_manager):
-    controller = SettingsController(config_manager)
-    controller.save(
-        {
-            "mode": "all",
-            "default_spec": "tiny",
-            "gpu_enabled": False,
-            "text_score": 0.9,
-            "box_thresh": 0.9,
-            "unclip_ratio": 3.0,
-            "language": "ja",
-        }
-    )
-    tab = SettingsTab(controller)
-    tab._restore_btn.click()
-    v = controller.load()
-    assert v["mode"] == "small"
-    assert v["default_spec"] == "small"
-    assert v["gpu_enabled"] is True
-    assert v["text_score"] == 0.5
+def test_settings_tab_is_placeholder(qapp):
+    """设置页当前为占位：只显示占位说明文字，不承载 OCR 配置表单。"""
+    tab = SettingsTab()
+    assert tab.findChild(QLabel) is not None
     tab.close()

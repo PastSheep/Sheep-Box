@@ -29,11 +29,6 @@ ocr:
         dict_path: ../assets/ocr/models/medium/dict.txt
         cls: ../assets/ocr/models/medium/cls.onnx
 
-  # 设备配置（可选）：首版仅 Windows，默认启用 GPU（需安装 onnxruntime-directml 后端；
-  # 未安装或探测失败时由程序内部自动回退 CPU）
-  device:
-    gpu_enabled: true
-
   # 识别阈值（可选，默认见下）
   thresholds:
     text_score: 0.5

@@ -68,8 +68,6 @@ ocr:
         det: medium/det.onnx
         rec: medium/rec.onnx
         dict_path: medium/dict.txt
-  device:
-    gpu_enabled: false
 """
 
 
@@ -226,8 +224,6 @@ ocr:
         det: medium/det.onnx
         rec: medium/rec.onnx
         dict_path: medium/dict.txt
-  device:
-    gpu_enabled: false
 """
     path = tmp_path / "config.yaml"
     path.write_text(content, encoding="utf-8")
