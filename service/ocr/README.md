@@ -1,7 +1,12 @@
 # OCR 模块（service/ocr）
 
-字节流输入 → 结构化输出（`OCRResult`：items 含 text/bbox/score、elapsed、text 拼接、clean_text）。
+字节流 / base64（含 `data:...;base64,` 前缀）输入 → 结构化输出（`OCRResult`：items 含 text/bbox/score、elapsed、text 拼接）。
 引擎基于 **RapidOCR（ONNX Runtime）**，已集成 PP-OCRv6 三档模型。
+运行环境：Python **3.11+**（base 依赖 `onnxruntime==1.24.4`）。
+
+> **职责边界**：本模块只负责识别与结构化输出，**不做文本清洗 / 后处理**。
+> 需要去空白、去空行、去重、多栏合并等清洗的，由未来消费结构化输出的
+> 功能模块自行实现（CLI 当前仅输出原始 `text` 拼接）。
 
 ## 模型资源
 
@@ -17,9 +22,10 @@
 ## 设备后端
 
 - 仅暴露 `gpu_enabled` 布尔开关；自动探测与 CPU 回退全部在程序内部（`service/ocr/device.py`）。
+- **CPU 包与 GPU 包互斥**：`onnxruntime`（base，CPU）与 `onnxruntime-directml` / `onnxruntime-gpu` 提供同名顶层模块，不能并存；dml / cuda **二选一，禁止同时安装**。
+- 注意 pip extras 是**并集**：安装 `.[ocr-gpu-dml]` / `.[ocr-gpu-cuda]` 会同时装上 base 的 CPU 包，安装后需 `pip uninstall -y onnxruntime`（或使用干净环境只装 GPU 包）。
 - GPU 首版仅 Windows，默认启用 DirectML（`onnxruntime-directml` 单包内含 CPU+GPU 两个 ExecutionProvider，**不会导致 CPU 不可用**；CPU 统一走 `CPUExecutionProvider`，品牌无关）。
 - CUDA 后端（`onnxruntime-gpu`）为可选 extra（Linux / NVIDIA）。
-- 多后端**不需要也不应双装**：GPU 包与 `onnxruntime` 顶层模块同名无法同时安装，共存靠单包多 EP。
 
 ## 开发注意（易踩坑）
 
