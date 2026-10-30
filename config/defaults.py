@@ -9,13 +9,14 @@ CLI/GUI 的「恢复默认」统一从本模块取默认值，避免在多个入
 from typing import Any
 
 from config.schema import (
+    AppSettingsConfig,
     ModelMode,
     ModelSpec,
     OcrConfig,
     OcrThresholdConfig,
 )
 
-__all__ = ["ocr_defaults_update"]
+__all__ = ["app_defaults_update", "ocr_defaults_update"]
 
 
 def ocr_defaults_update() -> dict[str, Any]:
@@ -46,3 +47,17 @@ def ocr_defaults_update() -> dict[str, Any]:
         "thresholds": OcrThresholdConfig().model_dump(),
         "language": OcrConfig.model_fields["language"].default,
     }
+
+
+def app_defaults_update() -> dict[str, Any]:
+    """返回程序级偏好的默认值（嵌套 update 字典）。
+
+    程序级偏好由设置界面承载（如界面语言）。当前仅 ``ui_language``；
+    未来新增偏好（如主题）在此追加。
+
+    Returns:
+        嵌套 update 字典，可直接传给 :meth:`ConfigManager` 对应写回接口::
+
+            {"app": {"ui_language": "zh_CN"}}
+    """
+    return {"app": {"ui_language": AppSettingsConfig().ui_language}}

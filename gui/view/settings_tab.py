@@ -16,9 +16,12 @@ class SettingsTab(QWidget):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         label = QLabel(
-            "暂无可用设置项。\n"
-            "设置界面将承载程序级偏好（如黑白主题、界面语言切换），"
-            "OCR 等业务模块的运行参数不在此配置。"
+            self.tr(
+                "No settings available yet.\n"
+                "The settings screen will host program-level preferences "
+                "(e.g. theme, UI language). OCR module parameters are not "
+                "configured here."
+            )
         )
         label.setWordWrap(True)
         layout = QVBoxLayout(self)

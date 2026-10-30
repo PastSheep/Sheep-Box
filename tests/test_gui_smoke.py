@@ -26,7 +26,6 @@ def test_main_window_hosts_settings_tab(qapp):
     assert isinstance(tabs, QTabWidget)
     assert tabs.count() == 1
     assert isinstance(tabs.widget(0), SettingsTab)
-    assert tabs.tabText(0) == "设置"
     win.close()
 
 

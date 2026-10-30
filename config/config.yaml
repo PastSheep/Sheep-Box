@@ -37,3 +37,7 @@ ocr:
 
   # 识别语言（可选，中文优先）
   language: zh
+
+# 程序级偏好（可选，由设置界面承载）
+app:
+  ui_language: zh_CN

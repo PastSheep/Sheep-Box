@@ -45,6 +45,29 @@ def test_load_valid_config(tmp_path):
     assert cfg.ocr.language == "zh"
 
 
+def test_app_section_defaults_when_absent(tmp_path):
+    """app 段可选：缺省回退 ui_language=zh_CN（程序偏好默认）。"""
+    path = _write(tmp_path, VALID_YAML)
+    cfg = load_config(path)
+    assert cfg.app.ui_language == "zh_CN"
+
+
+def test_app_ui_language_override(tmp_path):
+    """提供 app.ui_language 时生效（界面语言可配置）。"""
+    content = VALID_YAML + "\napp:\n  ui_language: en_US\n"
+    path = _write(tmp_path, content)
+    cfg = load_config(path)
+    assert cfg.app.ui_language == "en_US"
+
+
+def test_app_unknown_key_rejected(tmp_path):
+    """app 段未知键（extra=forbid）直接拒绝。"""
+    content = VALID_YAML + "\napp:\n  theme: dark\n"
+    path = _write(tmp_path, content)
+    with pytest.raises(ConfigError):
+        load_config(path)
+
+
 def test_missing_ocr_section_raises(tmp_path):
     path = _write(tmp_path, "other: 1\n")
     with pytest.raises(ConfigError):

@@ -23,7 +23,7 @@ from ruamel.yaml import YAML
 
 from common.exceptions import ConfigError
 from config.loader import load_config
-from config.schema import AppConfig, OcrConfig
+from config.schema import AppConfig, AppSettingsConfig, OcrConfig
 
 logger = logging.getLogger(__name__)
 
@@ -208,3 +208,11 @@ class ConfigManager:
             OCR 配置对象。
         """
         return self.get().ocr
+
+    def app(self) -> AppSettingsConfig:
+        """获取程序级偏好配置。
+
+        Returns:
+            程序级偏好配置对象（含界面语言等）。
+        """
+        return self.get().app

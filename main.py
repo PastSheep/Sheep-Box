@@ -20,6 +20,21 @@ from app.logging_config import configure_logging
 logger = logging.getLogger(__name__)
 
 
+def _read_ui_language() -> str | None:
+    """读取程序偏好的界面语言；config 无效时返回 None（回退默认）。
+
+    界面语言属程序偏好，config 无效不应阻塞 GUI 启动。
+    """
+    from app.bootstrap import build_config_manager
+    from common.exceptions import ConfigError
+
+    try:
+        return build_config_manager().app().ui_language
+    except ConfigError:
+        logger.warning("读取界面语言失败，回退默认 zh_CN", exc_info=True)
+        return None
+
+
 def main() -> int:
     """项目入口，负责全局日志配置并按参数启动。
 
@@ -40,7 +55,7 @@ def main() -> int:
     # GUI 分支延迟导入：无头模式与配置命令不加载 PySide6 / GUI 栈
     from gui.view.main_window import run_gui
 
-    return run_gui()
+    return run_gui(_read_ui_language())
 
 
 if __name__ == "__main__":

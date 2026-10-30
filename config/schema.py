@@ -116,15 +116,29 @@ class OcrConfig(BaseModel):
     language: str = Field(default="zh", description="识别语言，中文优先")
 
 
+class AppSettingsConfig(BaseModel):
+    """程序级偏好配置（由设置界面承载）。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    ui_language: str = Field(
+        default="zh_CN", description="界面语言（i18n），缺省 zh_CN"
+    )
+
+
 class AppConfig(BaseModel):
     """顶层配置结构。
 
-    ``ocr`` 为必填段；未来新增模块在此追加可选字段。
+    ``ocr`` 为必填段；``app`` 为程序级偏好（可选，含界面语言），
+    未来新增模块在此追加可选字段。
     """
 
     model_config = ConfigDict(extra="forbid")
 
     ocr: OcrConfig = Field(..., description="OCR 模块配置，必填")
+    app: AppSettingsConfig = Field(
+        default_factory=AppSettingsConfig, description="程序级偏好配置"
+    )
 
 
 def ocr_defaults_update() -> dict[str, object]:

@@ -12,19 +12,23 @@ class MainWindow(QMainWindow):
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        self.setWindowTitle("Sheep Box 设置")
+        self.setWindowTitle(self.tr("Sheep Box Settings"))
         self._tabs = QTabWidget(self)
-        self._tabs.addTab(SettingsTab(), "设置")
+        self._tabs.addTab(SettingsTab(), self.tr("Settings"))
         self.setCentralWidget(self._tabs)
         self.resize(600, 480)
 
 
-def run_gui() -> int:
+def run_gui(language: str | None = None) -> int:
     """启动 GUI 应用（阻塞运行，返回退出码）。
 
-    仅负责创建应用与窗口；当前设置页为占位，不承载 OCR 等业务配置。
+    Args:
+        language: 界面语言（如 ``zh_CN``）；缺省按程序偏好解析。
     """
+    from app.i18n import install_ui_translator
+
     app = QApplication.instance() or QApplication([])
+    install_ui_translator(language)
     window = MainWindow()
     window.show()
     return app.exec()

@@ -37,10 +37,11 @@ def test_no_gui_returns_zero(monkeypatch):
 
 def test_gui_success_returns_run_gui_code(monkeypatch):
     monkeypatch.setattr(main_module, "configure_logging", lambda: None)
+    monkeypatch.setattr(main_module, "_read_ui_language", lambda: "zh_CN")
     monkeypatch.setattr(sys, "argv", ["main.py"])
     import gui.view.main_window as main_window_module
 
-    monkeypatch.setattr(main_window_module, "run_gui", lambda: 7)
+    monkeypatch.setattr(main_window_module, "run_gui", lambda language: 7)
     assert main_module.main() == 7
 
 
