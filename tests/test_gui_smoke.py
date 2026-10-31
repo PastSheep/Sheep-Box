@@ -8,7 +8,13 @@ import os
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 import pytest
-from PySide6.QtWidgets import QApplication, QComboBox, QLabel, QTabWidget
+from PySide6.QtWidgets import (
+    QApplication,
+    QComboBox,
+    QFormLayout,
+    QGroupBox,
+    QTabWidget,
+)
 
 from gui.view.main_window import MainWindow
 from gui.view.settings_tab import SettingsTab
@@ -29,10 +35,12 @@ def test_main_window_hosts_settings_tab(qapp):
     win.close()
 
 
-def test_settings_tab_is_placeholder(qapp):
-    """设置页当前为占位：只显示占位说明文字，不承载 OCR 配置表单。"""
+def test_settings_tab_modern_form_layout(qapp):
+    """设置页用 QGroupBox + QFormLayout 双栏布局（label 列 / field 列对齐，
+    跨语言文本长度变化不导致字段控件位移）。"""
     tab = SettingsTab()
-    assert tab.findChild(QLabel) is not None
+    assert tab.findChild(QGroupBox) is not None
+    assert tab.findChild(QFormLayout) is not None
     tab.close()
 
 
