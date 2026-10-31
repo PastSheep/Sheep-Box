@@ -60,9 +60,24 @@ def test_app_ui_language_override(tmp_path):
     assert cfg.app.ui_language == "en_US"
 
 
+def test_app_theme_default(tmp_path):
+    """app.theme 缺省回退浅色（light）。"""
+    path = _write(tmp_path, VALID_YAML)
+    cfg = load_config(path)
+    assert cfg.app.theme.value == "light"
+
+
+def test_app_theme_override(tmp_path):
+    """提供 app.theme: dark 时生效（黑白主题可配置）。"""
+    content = VALID_YAML + "\napp:\n  theme: dark\n"
+    path = _write(tmp_path, content)
+    cfg = load_config(path)
+    assert cfg.app.theme.value == "dark"
+
+
 def test_app_unknown_key_rejected(tmp_path):
     """app 段未知键（extra=forbid）直接拒绝。"""
-    content = VALID_YAML + "\napp:\n  theme: dark\n"
+    content = VALID_YAML + "\napp:\n  unknown_key: 1\n"
     path = _write(tmp_path, content)
     with pytest.raises(ConfigError):
         load_config(path)
@@ -74,6 +89,14 @@ def test_save_app_writes_ui_language(tmp_path):
     cm = ConfigManager(path)
     cm.save_app({"ui_language": "en_US"})
     assert cm.app().ui_language == "en_US"
+
+
+def test_save_app_writes_theme(tmp_path):
+    """save_app 写回 app.theme 并生效（round-trip）。"""
+    path = _write(tmp_path, VALID_YAML)
+    cm = ConfigManager(path)
+    cm.save_app({"theme": "dark"})
+    assert cm.app().theme.value == "dark"
 
 
 def test_missing_ocr_section_raises(tmp_path):

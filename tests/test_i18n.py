@@ -63,7 +63,7 @@ def test_ui_text_translated_to_zh_CN(qapp):
     groups = tab0.findChildren(QGroupBox)
     assert any(g.title() == "界面" for g in groups)
     labels = tab0.findChildren(QLabel)
-    assert any("界面语言切换后立即生效并自动保存。" in lab.text() for lab in labels)
+    assert any(lab.text() == "主题" for lab in labels)
     assert window.windowTitle() == "Sheep Box 设置"
     assert tabs.tabText(0) == "设置"
 

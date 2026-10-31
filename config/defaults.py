@@ -14,6 +14,7 @@ from config.schema import (
     ModelSpec,
     OcrConfig,
     OcrThresholdConfig,
+    Theme,
 )
 
 __all__ = ["app_defaults_update", "ocr_defaults_update"]
@@ -52,12 +53,16 @@ def ocr_defaults_update() -> dict[str, Any]:
 def app_defaults_update() -> dict[str, Any]:
     """返回程序级偏好的默认值（嵌套 update 字典）。
 
-    程序级偏好由设置界面承载（如界面语言）。当前仅 ``ui_language``；
-    未来新增偏好（如主题）在此追加。
+    程序级偏好由设置界面承载（如界面语言、黑白主题）。
 
     Returns:
         嵌套 update 字典，可直接传给 :meth:`ConfigManager` 对应写回接口::
 
-            {"app": {"ui_language": "zh_CN"}}
+            {"app": {"ui_language": "zh_CN", "theme": "light"}}
     """
-    return {"app": {"ui_language": AppSettingsConfig().ui_language}}
+    return {
+        "app": {
+            "ui_language": AppSettingsConfig().ui_language,
+            "theme": Theme.LIGHT.value,
+        }
+    }

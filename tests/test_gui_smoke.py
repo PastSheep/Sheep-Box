@@ -52,3 +52,14 @@ def test_settings_tab_has_language_combo(qapp):
     assert combo.findData("zh_CN") >= 0
     assert combo.findData("en") >= 0
     tab.close()
+
+
+def test_settings_tab_has_theme_combo(qapp):
+    """设置页承载黑白主题下拉（light / dark 两个选项，第二个下拉）。"""
+    tab = SettingsTab()
+    combos = tab.findChildren(QComboBox)
+    assert len(combos) >= 2
+    theme_combo = combos[-1]
+    assert theme_combo.findData("light") >= 0
+    assert theme_combo.findData("dark") >= 0
+    tab.close()

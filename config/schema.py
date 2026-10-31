@@ -37,6 +37,13 @@ class ModelMode(StrEnum):
     ALL = "all"
 
 
+class Theme(StrEnum):
+    """界面主题（黑白双主题）。"""
+
+    LIGHT = "light"
+    DARK = "dark"
+
+
 class ModelSpecPaths(BaseModel):
     """单个模型规格对应的 ONNX 模型文件路径（PP-OCRv6）。"""
 
@@ -124,6 +131,7 @@ class AppSettingsConfig(BaseModel):
     ui_language: str = Field(
         default="zh_CN", description="界面语言（i18n），缺省 zh_CN"
     )
+    theme: Theme = Field(default=Theme.LIGHT, description="界面主题（黑白），缺省浅色")
 
 
 class AppConfig(BaseModel):
