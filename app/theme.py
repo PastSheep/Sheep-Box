@@ -46,15 +46,25 @@ def apply_ui_style() -> None:
     调色板驱动的黑白主题依赖样式逐角色读取 ``QPalette``；不固定样式时，
     Windows 原生 ``windowsvista`` 样式会忽略应用调色板，使深色主题不生效。
     无 ``QApplication`` 实例（如无头/测试）时安全跳过。
+
+    注意：应用设置 QSS 后，Qt 会用 ``QStyleSheetStyle`` 代理包装真实样式，
+    ``style().objectName()`` 变为空字符串，此时无法从代理读出底层样式名。
+    因此额外用应用级标记记录"已固定"，避免每次调用都重复 ``setStyle``。
     """
     from PySide6.QtWidgets import QApplication
 
     app = QApplication.instance()
-    if isinstance(app, QApplication) and (
-        app.style().objectName().lower() != UI_STYLE_NAME.lower()
-    ):
-        app.setStyle(UI_STYLE_NAME)
-        logger.info("界面样式已应用: %s", UI_STYLE_NAME)
+    if not isinstance(app, QApplication):
+        return
+    current = app.style().objectName().lower()
+    if current == UI_STYLE_NAME.lower():
+        return
+    if not current and bool(app.property("_sheepbox_ui_style_fixed")):
+        # 已被 QSS 代理包装，且此前已固定过 Fusion，无需重复设置
+        return
+    app.setStyle(UI_STYLE_NAME)
+    app.setProperty("_sheepbox_ui_style_fixed", True)
+    logger.info("界面样式已应用: %s", UI_STYLE_NAME)
 
 
 def resolve_ui_theme(config_theme: str | None = None) -> str:

@@ -4,41 +4,75 @@
 <context>
     <name>MainWindow</name>
     <message>
-        <location filename="../../gui/view/main_window.py" line="98"/>
-        <source>Sheep Box Settings</source>
-        <translation>Sheep Box 设置</translation>
+        <source>Sample</source>
+        <translation>示例</translation>
     </message>
     <message>
-        <location filename="../../gui/view/main_window.py" line="99"/>
         <source>Settings</source>
         <translation>设置</translation>
+    </message>
+    <message>
+        <source>Sheep Box</source>
+        <translation>Sheep Box</translation>
+    </message>
+</context>
+<context>
+    <name>WindowButton</name>
+    <message>
+        <source>Close</source>
+        <translation>关闭</translation>
+    </message>
+    <message>
+        <source>Minimize</source>
+        <translation>最小化</translation>
+    </message>
+    <message>
+        <source>Maximize</source>
+        <translation>最大化</translation>
+    </message>
+    <message>
+        <source>Restore</source>
+        <translation>还原</translation>
+    </message>
+</context>
+<context>
+    <name>SamplePage</name>
+    <message>
+        <source>Sample</source>
+        <translation>示例</translation>
+    </message>
+    <message>
+        <source>A demo page for the tab navigation</source>
+        <translation>用于验证标签导航的示例页</translation>
+    </message>
+    <message>
+        <source>Navigation</source>
+        <translation>导航条</translation>
+    </message>
+    <message>
+        <source>The active page expands into a pill; inactive pages stay as icons and show their title on hover. When there are too many pages, page-turn arrows appear on both sides.</source>
+        <translation>当前页展开为胶囊，其余页收缩为图标，鼠标悬停显示标题；页面过多时导航条两侧出现翻页箭头。</translation>
     </message>
 </context>
 <context>
     <name>SettingsTab</name>
     <message>
-        <location filename="../../gui/view/settings_tab.py" line="103"/>
         <source>Appearance</source>
-        <extracomment>偏好行的 label 列固定宽度（跨语言不变，防位移）。 偏好行的输入控件固定宽度（不随 label / 窗口拉伸变形）。</extracomment>
-        <translation>界面</translation>
+        <translation>外观</translation>
     </message>
     <message>
-        <location filename="../../gui/view/settings_tab.py" line="104"/>
         <source>UI Language</source>
         <translation>界面语言</translation>
     </message>
     <message>
-        <location filename="../../gui/view/settings_tab.py" line="105"/>
         <source>Theme</source>
         <translation>主题</translation>
     </message>
     <message>
-        <location filename="../../gui/view/settings_tab.py" line="109"/>
         <source>Light</source>
         <translation>浅色</translation>
     </message>
     <message>
-        <location filename="../../gui/view/settings_tab.py" line="112"/>
         <source>Dark</source>
         <translation>深色</translation>
     </message>

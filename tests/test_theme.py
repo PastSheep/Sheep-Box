@@ -72,9 +72,10 @@ def test_apply_ui_theme_default_light(qapp):
 def test_apply_ui_style_sets_fusion(qapp):
     """固定为 Fusion 样式：调色板驱动的主题需样式逐角色遵循 QPalette。
 
-    先切到原生 ``windowsvista`` 样式，再调用 :func:`apply_ui_style`，
-    断言被切回 Fusion（回归：Windows 原生样式忽略应用调色板，深色不生效）。
+    先清空应用 QSS（QSS 会把 Qt 样式代理成 QStyleSheetStyle，样式名读不到），
+    再切到原生 ``windowsvista`` 并调用 :func:`apply_ui_style`，断言切回 Fusion。
     """
+    qapp.setStyleSheet("")
     qapp.setStyle("windowsvista")
     apply_ui_style()
     assert qapp.style().objectName().lower() == UI_STYLE_NAME.lower()
@@ -82,6 +83,7 @@ def test_apply_ui_style_sets_fusion(qapp):
 
 def test_apply_ui_theme_applies_fusion_style(qapp):
     """应用主题时一并确保 Fusion 样式生效（与样式名无关的入口路径也覆盖）。"""
+    qapp.setStyleSheet("")
     qapp.setStyle("windowsvista")
     apply_ui_theme("dark")
     assert qapp.style().objectName().lower() == UI_STYLE_NAME.lower()

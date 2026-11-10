@@ -3,25 +3,21 @@
 覆盖：
 - 界面语言解析（默认 zh_CN / 覆盖）；
 - QTranslator 加载（zh_CN.qm 存在且可安装）；
-- 翻译实际生效（安装 zh_CN 后界面文本为中文）；
-- 未知语言回退英文源（返回 False）。
+- 翻译实际生效（安装 zh_CN 后页面标题 / 偏好标签为中文）；
+- 切换到英文后回退源文本。
 """
 
 import os
 
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+
 import pytest
-from PySide6.QtWidgets import (
-    QApplication,
-    QComboBox,
-    QGroupBox,
-    QLabel,
-    QTabWidget,
-)
+from PySide6.QtWidgets import QApplication, QComboBox, QLabel
 
 from app.i18n import I18N_DIR, install_ui_translator, resolve_ui_language
 from gui.view.main_window import MainWindow
-
-os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+from gui.view.sample_page import SamplePage
+from gui.view.settings_tab import SettingsTab
 
 
 @pytest.fixture(scope="module")
@@ -53,33 +49,42 @@ def test_install_ui_translator_missing(qapp):
 
 
 def test_ui_text_translated_to_zh_CN(qapp):
-    """安装 zh_CN 翻译后，界面标题 / 标签 / tab 文本应为中文。"""
+    """安装 zh_CN 翻译后，窗口标题 / 页面标题 / 偏好标签应为中文。"""
     assert install_ui_translator("zh_CN") is True
     window = MainWindow()
-    tabs = window.findChild(QTabWidget)
-    assert tabs is not None
-    tab0 = tabs.widget(0)
-    assert tab0 is not None
-    groups = tab0.findChildren(QGroupBox)
-    assert any(g.title() == "界面" for g in groups)
-    labels = tab0.findChildren(QLabel)
-    assert any(lab.text() == "主题" for lab in labels)
-    assert window.windowTitle() == "Sheep Box 设置"
-    assert tabs.tabText(0) == "设置"
+    page = window.findChild(SettingsTab)
+    assert page is not None
+    labels = [label.text() for label in page.findChildren(QLabel)]
+    assert "外观" in labels
+    assert "主题" in labels
+    assert "界面语言" in labels
+    assert window.windowTitle() == "Sheep Box"
+    window.close()
+
+
+def test_sample_page_translated_to_zh_CN(qapp):
+    """示例页标题与说明在 zh_CN 下为中文。"""
+    assert install_ui_translator("zh_CN") is True
+    window = MainWindow()
+    page = window.findChild(SamplePage)
+    assert page is not None
+    labels = [label.text() for label in page.findChildren(QLabel)]
+    assert "示例" in labels
+    assert "导航条" in labels
+    window.close()
 
 
 def test_switch_language_updates_ui(qapp):
     """切换到 English 后，界面文本回退英文源（en 无 .qm）。"""
     assert install_ui_translator("zh_CN") is True
     window = MainWindow(config_manager=None)
-    tabs = window.findChild(QTabWidget)
-    assert tabs is not None
-    tab0 = tabs.widget(0)
-    assert tab0 is not None
-    combo = tab0.findChild(QComboBox)
+    page = window.findChild(SettingsTab)
+    assert page is not None
+    combo = page.findChild(QComboBox)
     assert combo is not None
-    assert window.windowTitle() == "Sheep Box 设置"
+    assert window.windowTitle() == "Sheep Box"
     combo.setCurrentIndex(combo.findData("en"))
-    assert window.windowTitle() == "Sheep Box Settings"
-    assert tabs.tabText(0) == "Settings"
+    labels = [label.text() for label in page.findChildren(QLabel)]
+    assert window.windowTitle() == "Sheep Box"
+    assert "Appearance" in labels
     window.close()
