@@ -5,10 +5,10 @@ ocr:
   # 模型加载配置（必填段）
   model:
     # 默认模型模式：tiny / small / medium / all
-    #   - 非 all：仅加载 default_spec 对应规格一个实例（资源占用最小）
-    #   - all：同时加载全部规格
+    #   - 非 all：仅加载 mode 对应规格一个实例（资源占用最小）
+    #   - all：同时加载全部规格，生效规格取 default_spec
     mode: small
-    # 非 all 模式下的默认加载规格（首版默认 small）
+    # all 模式下的默认生效规格（非 all 时由 mode 决定档位；首版默认 small）
     default_spec: small
     # 各规格的 PP-OCRv6 模型路径（必填）：det/rec onnx + rec 字典 dict + cls onnx
     # 模型文件预置于 assets/ocr/models/{tiny,small,medium}/（不入库，部署时下载放置）
@@ -41,3 +41,4 @@ ocr:
 # 程序级偏好（可选，由设置界面承载）
 app:
   ui_language: zh_CN
+  theme: light

@@ -69,7 +69,7 @@ class OcrModelConfig(BaseModel):
     )
     default_spec: ModelSpec = Field(
         default=ModelSpec.SMALL,
-        description="mode 非 all 时的默认加载规格",
+        description="all 模式下的默认生效规格（非 all 时由 mode 决定档位）",
     )
     models: dict[ModelSpec, ModelSpecPaths] = Field(
         ..., description="各规格的 det/rec/dict/cls 模型路径，必填"
