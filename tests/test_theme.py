@@ -15,6 +15,8 @@ from PySide6.QtWidgets import QApplication
 from app.theme import (
     DEFAULT_UI_THEME,
     SUPPORTED_THEMES,
+    UI_STYLE_NAME,
+    apply_ui_style,
     apply_ui_theme,
     resolve_ui_theme,
 )
@@ -65,3 +67,21 @@ def test_apply_ui_theme_default_light(qapp):
     assert _window_color(qapp) == qapp.style().standardPalette().color(
         QPalette.ColorRole.Window
     )
+
+
+def test_apply_ui_style_sets_fusion(qapp):
+    """固定为 Fusion 样式：调色板驱动的主题需样式逐角色遵循 QPalette。
+
+    先切到原生 ``windowsvista`` 样式，再调用 :func:`apply_ui_style`，
+    断言被切回 Fusion（回归：Windows 原生样式忽略应用调色板，深色不生效）。
+    """
+    qapp.setStyle("windowsvista")
+    apply_ui_style()
+    assert qapp.style().objectName().lower() == UI_STYLE_NAME.lower()
+
+
+def test_apply_ui_theme_applies_fusion_style(qapp):
+    """应用主题时一并确保 Fusion 样式生效（与样式名无关的入口路径也覆盖）。"""
+    qapp.setStyle("windowsvista")
+    apply_ui_theme("dark")
+    assert qapp.style().objectName().lower() == UI_STYLE_NAME.lower()

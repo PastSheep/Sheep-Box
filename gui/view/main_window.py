@@ -109,8 +109,12 @@ def run_gui(
         config_manager: 通用配置中心；提供时语言切换可持久化。
     """
     from app.i18n import install_ui_translator
+    from app.theme import apply_ui_style
 
     app = QApplication.instance() or QApplication([])
+    # 先固定 Fusion 样式：调色板驱动的黑白主题需样式逐角色遵循 QPalette，
+    # 否则 Windows 原生样式会忽略应用调色板、深色主题不生效。
+    apply_ui_style()
     install_ui_translator(language)
     window = MainWindow(config_manager=config_manager)
     window.show()
