@@ -1,6 +1,6 @@
 """Sheep Box 项目启动入口。
 
-日志全局配置统一收敛在 :mod:`app.logging_config`（main 与 CLI 共用），
+日志全局配置统一收敛在 :mod:`app.logging_config`，
 各模块只通过 ``logging.getLogger(__name__)`` 获取 logger，不私自配置
 handler / formatter。
 

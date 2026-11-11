@@ -1,11 +1,9 @@
 """统一组装根：集中所有依赖的构建规则。
 
-GUI 由 main.py 作为组装根调用本模块；CLI 各命令因入口独立且 ``--config``
-动态传入，统一调用本模块的工厂函数。改依赖构造方式只改这里，不再散落在调用方。
+GUI 由 main.py 作为组装根调用本模块。改依赖构造方式只改这里，不再散落在调用方。
 
 注意：构建函数在函数体内延迟导入依赖，模块顶层只保留类型检查用途的导入，
-避免 ``import app.bootstrap`` / ``import cli.app`` 即连带加载配置栈 / OCR 引擎 /
-PySide6 等重量依赖（尤其 ``python -m cli`` 场景不应加载 GUI 栈）。
+避免 ``import app.bootstrap`` 即连带加载配置栈 / OCR 引擎 / PySide6 等重量依赖。
 """
 
 from pathlib import Path

@@ -1,7 +1,7 @@
 """全局日志配置（单一来源）。
 
-main（GUI）与 CLI 入口都从这里初始化 root logger，避免各模块私自配置
-handler / formatter，也保证 CLI 场景下 INFO 日志（如 OCR 引擎加载）可见。
+项目启动入口（main.py）从这里初始化 root logger，避免各模块私自配置
+handler / formatter；日志走 stderr，stdout 保持干净留给业务输出。
 """
 
 import copy
@@ -20,8 +20,8 @@ LOG_CONFIG: dict[str, Any] = {
         "console": {
             "class": "logging.StreamHandler",
             "formatter": "console",
-            # 日志一律走 stderr：CLI 的 --json 结果占 stdout，混在一起会让
-            # ``| jq`` / ``json.loads`` 直接失败。
+            # 日志一律走 stderr：stdout 留给业务输出，未来接管道或打包成
+            # 无控制台程序时都不会被日志混入。
             "stream": "ext://sys.stderr",
         }
     },

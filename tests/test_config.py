@@ -283,7 +283,7 @@ def test_save_app_wraps_oserror_as_config_error(tmp_path, monkeypatch):
     """写盘侧的 OSError（只读目录、文件被占用）统一归一为 ConfigError。
 
     修复前 ``save_app`` 只承诺 ConfigError、实现却会漏出裸 OSError，
-    GUI/CLI 的 ``except ConfigError`` 接不住，用户看到 Traceback。
+    调用方的 ``except ConfigError`` 接不住，用户看到 Traceback。
     """
     path = _write(tmp_path, VALID_YAML)
     cm = ConfigManager(path)
@@ -334,7 +334,7 @@ def test_config_file_lock_lives_beside_config(tmp_path):
 
 
 def test_concurrent_saves_keep_both_sections(tmp_path, monkeypatch):
-    """GUI 与 CLI 同时写不同段时，两边的键都要留在文件里。
+    """两个实例同时写不同段时，两边的键都要留在文件里。
 
     用「进入 ``_atomic_write`` 后先睡一会儿」放大 read-modify-replace 窗口：
     没有任何跨进程互斥时，两个写者都基于同一份旧快照写回，后写者会覆盖前者。

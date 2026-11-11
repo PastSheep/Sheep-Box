@@ -3,7 +3,7 @@
 覆盖：
 - ``main.py`` 返回码：``--no-gui`` 为 0，成功透传 ``run_gui``；
 - 全局日志配置单一来源且不修改模块级 ``LOG_CONFIG``；
-- ``import cli.app`` / ``import app.bootstrap`` 不加载重量依赖（无 GUI / OCR 栈）。
+- ``import app.bootstrap`` 不加载重量依赖（无 GUI / OCR 栈）。
 """
 
 import logging
@@ -64,9 +64,9 @@ def test_configure_logging_does_not_mutate_log_config():
 
 
 def test_runtime_logs_go_to_stderr_not_stdout(capsys):
-    """日志必须写 stderr：CLI 的 ``--json`` 结果占 stdout，混进去就无法解析。
+    """日志必须写 stderr：stdout 留给业务输出，混进去会污染它。
 
-    修复前 handler 指向 stdin/stdout 的 ``sys.stdout``，INFO 日志会和 JSON 交织。
+    修复前 handler 指向 stdin/stdout 的 ``sys.stdout``，INFO 日志会和业务输出交织。
     """
     root = logging.getLogger()
     saved_handlers = root.handlers[:]
@@ -80,18 +80,6 @@ def test_runtime_logs_go_to_stderr_not_stdout(capsys):
     finally:
         root.handlers[:] = saved_handlers
         root.setLevel(saved_level)
-
-
-def test_import_cli_app_does_not_load_heavy_dependencies():
-    code = (
-        "import sys, cli.app; "
-        "heavy = [m for m in sys.modules "
-        "if m.split('.')[0] in ('rapidocr', 'onnxruntime', 'PySide6')]; "
-        "print(len(heavy))"
-    )
-    proc = _run_python(code)
-    assert proc.returncode == 0, proc.stderr
-    assert proc.stdout.strip() == "0"
 
 
 def test_import_bootstrap_does_not_load_config_or_ocr_stack():

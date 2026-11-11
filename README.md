@@ -48,7 +48,6 @@ config/         配置文件与配置中心（pydantic 校验、原子写回、m
 common/         公共工具、常量、异常
 service/        核心能力模块（service/ocr 识别、service/sysinfo 设备资源采集、service/capture 窗口截图）
 gui/            桌面界面（PySide6）：设计系统（gui/theme 令牌 / 背景 / 样式 + 组件）+ 导航条 + 页面
-cli/            CLI 入口（ocr 识别 / config 读写）
 app/            组装根（bootstrap）、日志配置、i18n、主题
 models/         数据模型（预留）
 api/            接口入口（预留）
@@ -265,7 +264,7 @@ picker.start()
 混合缩放时物理坐标按「逻辑原点 × 比例」近似，单屏或统一缩放无偏差。
 
 
-## GUI 与 CLI 入口
+## 桌面入口
 
 ### GUI（PySide6 桌面界面）
 
@@ -360,26 +359,13 @@ picker.start()
 `QStyleSheetStyle` 代理包装真实样式，`style().objectName()` 不再返回真实样式名。
 
 OCR 等业务模块的运行参数不在 GUI 中编辑（`model.mode` / `thresholds` 等应由真正消费
-OCR 的业务模块控制），当前通过 `config.yaml` 或 CLI 调整。
+OCR 的业务模块控制），当前通过 `config.yaml` 调整。
 
 ```bash
 # 默认启动 GUI（普通用户入口）
 python main.py
 # 无头模式：不启动 GUI，仅初始化日志后退出
 python main.py --no-gui
-```
-
-### CLI（typer，可脚本化的无头入口）
-
-```bash
-# 单图识别：默认文本输出；--json 输出结构化结果；--spec 热切换规格
-python -m cli ocr <图片> [--spec tiny|small|medium] [--json]
-
-# 配置读写：点路径相对 ocr 段（如 model.mode，不是 ocr.model.mode）
-python -m cli config get model.mode [--json]
-python -m cli config set model.mode tiny
-python -m cli config list [--json]
-python -m cli config reset
 ```
 
 ## 开发校验

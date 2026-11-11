@@ -16,7 +16,7 @@
 
 ### 1.2 适用范围
 
-项目全部 Python 代码，包含接口层、服务层、模型层、定时任务、CLI 脚本；**不包含第三方库内部日志**。
+项目全部 Python 代码，包含接口层、服务层、模型层、定时任务、桌面界面；**不包含第三方库内部日志**。
 
 
 
@@ -84,7 +84,7 @@ logger = logging.getLogger(__name__)
 
 ### 2.3 入口职责
 
-只有项目启动入口（`main.py` / cli 入口）负责日志全局配置，优先使用 `logging.config.dictConfig`。
+只有项目启动入口（`main.py`）负责日志全局配置，优先使用 `logging.config.dictConfig`。
 
 
 

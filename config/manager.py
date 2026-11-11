@@ -46,7 +46,7 @@ def _config_file_lock(
 ) -> Iterator[None]:
     """配置文件跨进程独占锁。
 
-    进程内 ``RLock`` 只能串行化同一实例的读写；GUI 与 CLI 同时写同一个
+    进程内 ``RLock`` 只能串行化同一实例的读写；GUI 多开或外部脚本同时写同一个
     config.yaml 时，「读 → 合并 → 原子替换」会互相覆盖。这里用配置文件同目录下的
     锁文件加字节范围锁（``msvcrt.locking``），进程退出时由系统自动释放，即使
     进程崩溃也不会留下死锁。
@@ -74,7 +74,7 @@ def _config_file_lock(
         handle = lock_path.open("a+b")
     except OSError as exc:
         # 目录只读 / 无权限时连锁都建不了，此时写配置本身也必然失败，
-        # 归一到 ConfigError，避免 GUI/CLI 的 except ConfigError 接不住。
+        # 归一到 ConfigError，避免调用方的 except ConfigError 接不住。
         raise ConfigError(f"无法创建配置锁文件: {lock_path}: {exc}") from exc
     try:
         deadline = time.monotonic() + timeout
@@ -226,7 +226,7 @@ class ConfigManager:
             ConfigError: 合并结果不合法、读回校验失败，或磁盘写入失败（底层
                 ``OSError`` 统一归一为该类型，调用方只需处理一种异常）。
         """
-        # 进程内 RLock 串行化同实例，文件锁串行化跨进程（GUI 与 CLI 并存）。
+        # 进程内 RLock 串行化同实例，文件锁串行化跨进程（多实例并存时）。
         with self._lock, _config_file_lock(self.path):
             try:
                 with self.path.open("r", encoding="utf-8") as f:
@@ -252,7 +252,7 @@ class ConfigManager:
                 raise
             except OSError as exc:
                 # 只读部署目录、文件被占用、运行中被删等磁盘侧失败，统一归一为
-                # ConfigError：GUI/CLI 只需处理一种异常，不会漏出裸 traceback。
+                # ConfigError：调用方只需处理一种异常，不会漏出裸 traceback。
                 raise ConfigError(f"配置写入失败: {self.path}: {exc}") from exc
 
     def _atomic_write(self, data: dict[Any, Any]) -> None:
