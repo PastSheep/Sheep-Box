@@ -46,7 +46,7 @@ pre-commit install
 ```text
 config/         配置文件与配置中心（pydantic 校验、原子写回、mtime 热重载）
 common/         公共工具、常量、异常
-service/        核心能力模块（service/ocr 识别、service/sysinfo 设备资源采集）
+service/        核心能力模块（service/ocr 识别、service/sysinfo 设备资源采集、service/capture 窗口截图）
 gui/            桌面界面（PySide6）：设计系统（gui/theme 令牌 / 背景 / 样式 + 组件）+ 导航条 + 页面
 cli/            CLI 入口（ocr 识别 / config 读写）
 app/            组装根（bootstrap）、日志配置、i18n、主题
@@ -159,6 +159,110 @@ snapshot.gpus[0].utilization_percent   # 适配器级占用 %（最忙引擎）
 - **多卡策略**：每个物理适配器各显示一项（不做「只显示最忙的那块」）；
 - **失败边界**：CPU / 内存读不到 → `SystemInfoError`；GPU 计数器不可用或单次读取失败 →
   该次 `gpus` 为空并记 warning，不影响 CPU / 内存。
+
+## 截图模块（service/capture）
+
+与 OCR、sysinfo 平级的基础能力模块：给一个窗口句柄和一块**客户区区域**，拿回原始像素
+（BGRA、自上而下、不带 alpha 语义）。不做 OCR、不做定时调度、不编码落盘、不读业务
+配置、不导入 PySide6。能力给全、业务按需。
+
+面向「窗口宽高比固定、位置会变」的场景（典型是游戏窗口的任务区域）：
+
+```python
+from service.capture import CaptureRegion, NormalizedRegion, WindowCapturer
+
+with WindowCapturer() as capturer:
+    frame = capturer.capture(hwnd, NormalizedRegion(0.60, 0.14, 0.28, 0.29))
+
+frame.width / frame.height    # 像素尺寸
+frame.data                    # bytes，可直接喂 QImage.Format_ARGB32
+frame.space                   # "client" 或 "screen"——本帧实际口径
+frame.backend                 # "gdi-window" / "printwindow" / "screen" / "dxgi" / "wgc"
+frame.degraded                # 是否由降级产生
+```
+
+### 后端矩阵
+
+| 后端 | 实现 | 被遮挡时 | 独占全屏 | 说明 |
+|---|---|---|---|---|
+| `screen` | `GetDC(NULL)` + BitBlt | 截到遮挡者 | 拿到空白 | 屏幕物理像素，所见即所得 |
+| `window` | `GetDC(hwnd)` + BitBlt | 仍拿窗口自身内容 | 可用 | 客户区像素，合成窗口常黑 |
+| `printwindow` | `PrintWindow(PW_RENDERFULLCONTENT)` | 仍拿窗口自身内容 | 可用 | 窗口表面判黑后的第二次尝试 |
+| `dxgi` | `IDXGIOutputDuplication` 桌面复制 | 截到遮挡者 | 拿到空白 | 屏幕物理像素，抗撕裂、可连续拉帧 |
+| `wgc` | `windows-capture`（WinRT Graphics Capture） | **仍拿窗口自身内容** | 可用 | 客户端像素，唯一抗遮挡的一档，需 Win10 1903+ |
+
+`backend="auto"`（默认）：先窗口表面 → 判黑（暗像素或近黑单色占比 ≥ 99.5%）→ 试
+`PrintWindow` → 仍黑则试 `dxgi`（环境不支持就跳过）→ 最后退 `screen` 并标
+`degraded=True`。`detect_blank=False` 时不做判黑。`wgc` **不参与** `auto`——它会启动
+一条常驻捕获线程，只在业务明确要求「必须抗遮挡」时才显式指定。
+
+### 关键契约
+
+- **`space` 必须分清**：`client` 是窗口表面像素，`screen` 是屏幕物理像素。DPI-unaware
+  程序被系统位图拉伸，同一区域在两种口径下尺寸不同（`WindowInfo` 同时给
+  `client_width/height` 与 `screen_width/height`），混用必错位；
+- **遮挡契约**：`screen` 与 `dxgi` 口径下被遮挡会截到**遮挡者的内容**——不是黑图，比黑图
+  更难发现。默认抓取前做弱校验（区域中心 `WindowFromPoint` 的根祖先是否为目标窗口），
+  命中即抛 `CaptureOccludedError`；`strict_foreground=True` 升级为「必须是前台窗口」；
+- **越界**：默认钳制（`clamp_region=True`）；完全越界、或关掉钳制后任何越界，都抛
+  `CaptureRegionError`；
+- **区域两种写法**：`CaptureRegion(x, y, w, h)` 是像素，`NormalizedRegion(nx, ny, nw, nh)`
+  是比例。后者运行时按当前尺寸换算，1280×720 ↔ 1920×1080 切换不必改配置；
+- **异常**：`WindowNotFoundError` / `WindowNotVisibleError`（不可见或最小化）/
+  `WindowOutOfScreenError` / `CaptureRegionError` / `CaptureOccludedError` /
+  `CaptureUnavailableError` / `CaptureBackendError`；
+- **硬前提**：独占全屏（FSE）绕过 DWM，`screen` 与 `dxgi` 拿到的是空白。游戏需用无边框
+  窗口或窗口化才能稳定截取，这一点没有软件解法。
+
+### DXGI 后端的额外约束
+
+`backend="dxgi"` 是最快的一条路（区域 250×200 实测 1.06ms/帧），代价是几条硬限制：
+
+- **只覆盖单个显示器**：区域跨屏直接抛 `CaptureUnavailableError`，不做拼接；
+- **显示器旋转（90°/270°）不支持**：复制出的坐标与屏幕坐标不一致，抛
+  `CaptureUnavailableError`；
+- **首帧已丢弃**：复制接口刚建立时第一帧常是共享纹理的空帧（全黑），后端在打开后
+  拉一次并丢弃，业务侧不必自己处理；
+- **无新帧时复用缓存**：桌面静止时 `AcquireNextFrame` 会超时，同一区域沿用上一次结果；
+  换了区域又长时间没有新帧才抛 `CaptureBackendError`；
+- **容量限制**：一个进程在同一输出上只能有一个复制接口，整个会话最多 4 个进程并发；
+  多个截图实例共存时要考虑这一点。
+
+### WGC 后端的额外约束
+
+`backend="wgc"` 是唯一「窗口被别的窗口盖住也照样拿到自己内容」的一档，代价是更慢
+（区域 250×200 实测 6ms/次，含等待新帧）且有几条平台限制：
+
+- **依赖第三方包**：`windows-capture`（Rust 扩展，229KB，复用已装的 numpy/opencv，
+  不额外拉体积），已在 `pyproject.toml` 登记；缺包时请求该后端抛
+  `CaptureUnavailableError`；
+- **Win10 1903+**：本机 19045 实测可用。Win10 不支持 `IsBorderRequired` 与
+  `minimum_update_interval` 两个设置项（传进去会让会话直接抛异常），所以都不传——
+  Win10 没有捕获边框，Win11 会在被抓窗口外画一圈黄框，这是该 API 的既定行为；
+- **常驻一条捕获线程**：会话在第一次 `open()` 时启动、`close()` 时停止；同一实例换
+  窗口会重建会话，同一窗口重复 `open()` 只刷新尺寸快照；
+- **帧是整窗口径**：尺寸等于窗口帧（含标题栏与边框），客户区在帧内的偏移由
+  `client_origin - frame_rect` 算出，抓取时按该偏移裁剪，所以输出仍是 `client` 口径；
+- **画面静止不产帧**：抓取先等 50ms 新帧，超时用缓存帧；
+- **最小化不可用**：门面层的 `WindowNotVisibleError` 已拦在前面。
+
+
+
+### 选区组件（gui/components/region_picker.py）
+
+只产出坐标，不截图。覆盖所有显示器并集，悬停窗口虚线高亮、拖拽选框实时显示物理
+尺寸、距客户区边缘 8px 吸附、拖拽不足 4px 视为单击选整窗、`Esc` 取消：
+
+```python
+from gui.components import RegionPicker
+
+picker = RegionPicker()
+picker.picked.connect(lambda r: print(r.hwnd, r.client_region, r.normalized_region))
+picker.start()
+```
+
+`PickResult` 同时给屏幕物理矩形、客户区像素区域与归一化区域，业务侧按需取用。多显示器
+混合缩放时物理坐标按「逻辑原点 × 比例」近似，单屏或统一缩放无偏差。
 
 
 ## GUI 与 CLI 入口

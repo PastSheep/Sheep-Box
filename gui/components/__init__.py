@@ -3,6 +3,7 @@
 from gui.components.field_row import FieldRow
 from gui.components.glass_card import GlassCard
 from gui.components.nav_bar import NavBar
+from gui.components.region_picker import PickResult, RegionPicker
 from gui.components.select_combo import SelectComboBox
 from gui.components.title_bar import TitleBar, WindowButton
 
@@ -10,6 +11,8 @@ __all__ = [
     "FieldRow",
     "GlassCard",
     "NavBar",
+    "PickResult",
+    "RegionPicker",
     "SelectComboBox",
     "TitleBar",
     "WindowButton",

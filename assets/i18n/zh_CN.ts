@@ -4,22 +4,30 @@
 <context>
     <name>MainWindow</name>
     <message>
-        <location filename="../../gui/view/main_window.py" line="357"/>
+        <location filename="../../gui/view/main_window.py" line="363"/>
         <source>Sample</source>
         <translation>示例</translation>
     </message>
     <message>
-        <location filename="../../gui/view/main_window.py" line="357"/>
+        <location filename="../../gui/view/main_window.py" line="363"/>
         <source>Settings</source>
         <translation>设置</translation>
     </message>
     <message>
         <location filename="../../gui/view/main_window.py" line="107"/>
-        <location filename="../../gui/view/main_window.py" line="355"/>
-        <location filename="../../gui/view/main_window.py" line="359"/>
+        <location filename="../../gui/view/main_window.py" line="361"/>
+        <location filename="../../gui/view/main_window.py" line="365"/>
         <source>Sheep Box</source>
         <extracomment>导航条图标键：设置齿轮状滑块 / 示例页叠层。</extracomment>
         <translation>Sheep Box</translation>
+    </message>
+</context>
+<context>
+    <name>RegionPicker</name>
+    <message>
+        <location filename="../../gui/components/region_picker.py" line="144"/>
+        <source>Click a window, or drag to select a region (Esc to cancel)</source>
+        <translation>单击窗口选择整窗，或拖拽框选区域（Esc 取消）</translation>
     </message>
 </context>
 <context>
@@ -48,43 +56,43 @@
 <context>
     <name>SettingsTab</name>
     <message>
-        <location filename="../../gui/view/settings_tab.py" line="202"/>
+        <location filename="../../gui/view/settings_tab.py" line="199"/>
         <source>Appearance</source>
         <extracomment>可选刷新间隔（毫秒, 显示文本）。显示文本是数值单位，不参与翻译。 配置缺失时的兜底锚点（与 ``config.schema`` 默认值一致）</extracomment>
         <translation>外观</translation>
     </message>
     <message>
-        <location filename="../../gui/view/settings_tab.py" line="203"/>
+        <location filename="../../gui/view/settings_tab.py" line="200"/>
         <source>UI Language</source>
         <translation>界面语言</translation>
     </message>
     <message>
-        <location filename="../../gui/view/settings_tab.py" line="204"/>
+        <location filename="../../gui/view/settings_tab.py" line="201"/>
         <source>Theme</source>
         <translation>主题</translation>
     </message>
     <message>
-        <location filename="../../gui/view/settings_tab.py" line="205"/>
+        <location filename="../../gui/view/settings_tab.py" line="202"/>
         <source>Status Bar</source>
         <translation>状态栏</translation>
     </message>
     <message>
-        <location filename="../../gui/view/settings_tab.py" line="206"/>
+        <location filename="../../gui/view/settings_tab.py" line="203"/>
         <source>Refresh Interval</source>
         <translation>刷新间隔</translation>
     </message>
     <message>
-        <location filename="../../gui/view/settings_tab.py" line="207"/>
+        <location filename="../../gui/view/settings_tab.py" line="204"/>
         <source>Pressure Colors</source>
         <translation>压力着色</translation>
     </message>
     <message>
-        <location filename="../../gui/view/settings_tab.py" line="211"/>
+        <location filename="../../gui/view/settings_tab.py" line="208"/>
         <source>Light</source>
         <translation>浅色</translation>
     </message>
     <message>
-        <location filename="../../gui/view/settings_tab.py" line="214"/>
+        <location filename="../../gui/view/settings_tab.py" line="211"/>
         <source>Dark</source>
         <translation>深色</translation>
     </message>
@@ -92,23 +100,23 @@
 <context>
     <name>StatusBar</name>
     <message>
-        <location filename="../../gui/components/status_bar.py" line="192"/>
+        <location filename="../../gui/components/status_bar.py" line="190"/>
         <source>CPU</source>
         <extracomment>状态栏高度（含 1px 分隔线） 压力点直径 数值列宽度（容纳 &quot;100%&quot;） 指标之间的水平间距</extracomment>
         <translation>CPU</translation>
     </message>
     <message>
-        <location filename="../../gui/components/status_bar.py" line="193"/>
+        <location filename="../../gui/components/status_bar.py" line="191"/>
         <source>MEM</source>
         <translation>内存</translation>
     </message>
     <message>
-        <location filename="../../gui/components/status_bar.py" line="238"/>
+        <location filename="../../gui/components/status_bar.py" line="236"/>
         <source>GPU</source>
         <translation>GPU</translation>
     </message>
     <message>
-        <location filename="../../gui/components/status_bar.py" line="240"/>
+        <location filename="../../gui/components/status_bar.py" line="238"/>
         <source>GPU %1</source>
         <translation>GPU %1</translation>
     </message>
@@ -140,18 +148,18 @@
 <context>
     <name>_AnchorPopup</name>
     <message>
-        <location filename="../../gui/components/gradient_stops.py" line="103"/>
+        <location filename="../../gui/components/gradient_stops.py" line="126"/>
         <source>Custom</source>
-        <extracomment>控件总高度（轨道 + 节点外扩） 轨道高度 左右留白，保证首尾节点不被裁掉 节点半径（绘制用） 命中容差（像素） 调色板预设色（按暖 → 冷排列，覆盖常见压力语义）</extracomment>
+        <extracomment>控件总高度（上下两排标签 + 节点 + 轨道） 轨道高度：刻意比节点直径小，让节点像&quot;卡在细线上的珠子&quot; 左右留白，保证首尾节点的光晕不被裁掉 节点半径（绘制用），直径 12 &gt; 轨道 6 端点菱形的对角半径（菱形长对角线 14） 命中容差（像素） 标签与节点边缘的间隙 相邻标签之间的最小水平间隙，小于它就上下错开 锚点之间的最小位置差（百分比），同时约束拖动与新增 判定「端点」的位置容差（百分比） 调色板预设色（按暖 → 冷排列，覆盖常见压力语义）</extracomment>
         <translation>自定义</translation>
     </message>
     <message>
-        <location filename="../../gui/components/gradient_stops.py" line="108"/>
+        <location filename="../../gui/components/gradient_stops.py" line="131"/>
         <source>Delete</source>
         <translation>删除</translation>
     </message>
     <message>
-        <location filename="../../gui/components/gradient_stops.py" line="160"/>
+        <location filename="../../gui/components/gradient_stops.py" line="186"/>
         <source>Color</source>
         <translation>颜色</translation>
     </message>
