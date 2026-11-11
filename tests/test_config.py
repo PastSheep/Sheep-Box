@@ -3,6 +3,9 @@
 覆盖：YAML 加载、必填严格校验、可选回退、非法枚举、文件缺失、运行时热更新。
 """
 
+import threading
+import time
+
 import pytest
 
 from common.exceptions import ConfigError
@@ -274,3 +277,100 @@ def test_save_ocr_invalid_value_leaves_file_and_no_temp(tmp_path):
     assert path.read_bytes() == before
     assert not path.with_suffix(path.suffix + ".tmp").exists()
     assert not path.with_suffix(path.suffix + ".bak").exists()
+
+
+def test_save_app_wraps_oserror_as_config_error(tmp_path, monkeypatch):
+    """写盘侧的 OSError（只读目录、文件被占用）统一归一为 ConfigError。
+
+    修复前 ``save_app`` 只承诺 ConfigError、实现却会漏出裸 OSError，
+    GUI/CLI 的 ``except ConfigError`` 接不住，用户看到 Traceback。
+    """
+    path = _write(tmp_path, VALID_YAML)
+    cm = ConfigManager(path)
+
+    def _fail(_data):
+        raise PermissionError("配置文件只读")
+
+    monkeypatch.setattr(cm, "_atomic_write", _fail)
+    with pytest.raises(ConfigError):
+        cm.save_app({"theme": "dark"})
+
+
+def test_config_file_lock_serializes_writers(tmp_path):
+    """跨进程锁必须让两个写者的临界区严格不重叠。"""
+    from config.manager import _config_file_lock
+
+    path = _write(tmp_path, VALID_YAML)
+    barrier = threading.Barrier(2)
+    spans: list[tuple[float, float]] = []
+
+    def _hold(name: str) -> None:
+        del name
+        barrier.wait()
+        with _config_file_lock(path):
+            start = time.monotonic()
+            time.sleep(0.05)
+            spans.append((start, time.monotonic()))
+
+    threads = [threading.Thread(target=_hold, args=(name,)) for name in ("a", "b")]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    assert len(spans) == 2
+    spans.sort()
+    assert spans[1][0] >= spans[0][1], "两个写者的临界区发生了重叠"
+
+
+def test_config_file_lock_lives_beside_config(tmp_path):
+    """锁文件与配置同目录：不同 %TEMP% 的进程之间也能互斥。"""
+    from config.manager import _config_file_lock
+
+    path = _write(tmp_path, VALID_YAML)
+    lock = tmp_path / f".{path.name}.lock"
+    assert not lock.exists()
+    with _config_file_lock(path):
+        assert lock.exists()
+
+
+def test_concurrent_saves_keep_both_sections(tmp_path, monkeypatch):
+    """GUI 与 CLI 同时写不同段时，两边的键都要留在文件里。
+
+    用「进入 ``_atomic_write`` 后先睡一会儿」放大 read-modify-replace 窗口：
+    没有任何跨进程互斥时，两个写者都基于同一份旧快照写回，后写者会覆盖前者。
+    """
+    path = _write(tmp_path, VALID_YAML)
+    left = ConfigManager(path)
+    right = ConfigManager(path)
+    for manager in (left, right):
+        original = manager._atomic_write
+
+        def _slow(data, _original=original):
+            time.sleep(0.02)
+            _original(data)
+
+        monkeypatch.setattr(manager, "_atomic_write", _slow)
+
+    barrier = threading.Barrier(2)
+    errors: list[BaseException] = []
+
+    def _save(manager: ConfigManager, update: dict[str, object]) -> None:
+        try:
+            barrier.wait()
+            manager.save_app(update)
+        except BaseException as exc:  # noqa: BLE001 - 线程内异常需带回主线程
+            errors.append(exc)
+
+    threads = [
+        threading.Thread(target=_save, args=(left, {"theme": "dark"})),
+        threading.Thread(target=_save, args=(right, {"ui_language": "en_US"})),
+    ]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+
+    assert errors == []
+    cfg = load_config(path)
+    assert cfg.app.theme.value == "dark"
+    assert cfg.app.ui_language == "en_US"

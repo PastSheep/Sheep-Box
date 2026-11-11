@@ -15,6 +15,9 @@ import os
 import shutil
 import tempfile
 import threading
+import time
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
@@ -25,9 +28,73 @@ from common.exceptions import ConfigError
 from config.loader import load_config
 from config.schema import AppConfig, AppSettingsConfig, OcrConfig
 
+try:  # pragma: no cover - 仅 Windows 部署启用跨进程锁
+    import msvcrt
+except ImportError:  # pragma: no cover
+    msvcrt = None  # type: ignore[assignment]
+
 logger = logging.getLogger(__name__)
 
 _yaml = YAML()
+
+_LOCK_TIMEOUT_SECONDS = 3.0
+
+
+@contextmanager
+def _config_file_lock(
+    path: Path, timeout: float = _LOCK_TIMEOUT_SECONDS
+) -> Iterator[None]:
+    """配置文件跨进程独占锁。
+
+    进程内 ``RLock`` 只能串行化同一实例的读写；GUI 与 CLI 同时写同一个
+    config.yaml 时，「读 → 合并 → 原子替换」会互相覆盖。这里用配置文件同目录下的
+    锁文件加字节范围锁（``msvcrt.locking``），进程退出时由系统自动释放，即使
+    进程崩溃也不会留下死锁。
+
+    锁文件与配置同目录（而不是系统临时目录）：``%TEMP%`` 不同的进程（服务、
+    容器、自定义 TMP）之间也要互斥。文件名带前导点，避免被当成配置备份。
+
+    Args:
+        path: 被保护的配置文件。
+        timeout: 等待锁的最长秒数。
+
+    Yields:
+        None。
+
+    Raises:
+        ConfigError: 无法创建锁文件，或超时仍未取得锁（另一进程长时间占用）。
+    """
+    if msvcrt is None:  # pragma: no cover - 非 Windows
+        yield
+        return
+
+    resolved = path.resolve()
+    lock_path = resolved.parent / f".{resolved.name}.lock"
+    try:
+        handle = lock_path.open("a+b")
+    except OSError as exc:
+        # 目录只读 / 无权限时连锁都建不了，此时写配置本身也必然失败，
+        # 归一到 ConfigError，避免 GUI/CLI 的 except ConfigError 接不住。
+        raise ConfigError(f"无法创建配置锁文件: {lock_path}: {exc}") from exc
+    try:
+        deadline = time.monotonic() + timeout
+        while True:
+            try:
+                msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+                break
+            except OSError:
+                if time.monotonic() >= deadline:
+                    raise ConfigError(f"等待配置文件锁超时：{path}") from None
+                time.sleep(0.02)
+        try:
+            yield
+        finally:
+            try:
+                msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+            except OSError:  # pragma: no cover - 解锁失败不该掩盖原异常
+                logger.warning("释放配置锁失败: %s", lock_path, exc_info=True)
+    finally:
+        handle.close()
 
 
 def _deep_merge(target: dict[Any, Any], update: dict[Any, Any]) -> None:
@@ -123,8 +190,7 @@ class ConfigManager:
                 ``{"model": {"mode": "tiny"}}``。
 
         Raises:
-            ConfigError: 合并后的 OCR 配置不合法、或读回校验失败。
-            OSError: 配置文件读写失败。
+            ConfigError: 合并后的配置不合法、读回校验失败，或磁盘写入失败。
         """
         self._write_section("ocr", OcrConfig, update)
 
@@ -139,8 +205,7 @@ class ConfigManager:
                 ``{"ui_language": "zh_CN"}``。
 
         Raises:
-            ConfigError: 合并后的程序偏好配置不合法、或读回校验失败。
-            OSError: 配置文件读写失败。
+            ConfigError: 合并后的程序偏好配置不合法、读回校验失败，或磁盘写入失败。
         """
         self._write_section("app", AppSettingsConfig, update)
 
@@ -156,25 +221,39 @@ class ConfigManager:
             section: 顶层配置段名（如 ``ocr`` / ``app``）。
             model_cls: 该段的 pydantic 模型，用于写回前校验。
             update: 待合并字段，支持嵌套字典。
+
+        Raises:
+            ConfigError: 合并结果不合法、读回校验失败，或磁盘写入失败（底层
+                ``OSError`` 统一归一为该类型，调用方只需处理一种异常）。
         """
-        with self._lock:
-            with self.path.open("r", encoding="utf-8") as f:
-                data = _yaml.load(f)
-            if data is None:
-                data = {}
-            if not isinstance(data, dict):
-                raise ConfigError(f"配置文件顶层必须是映射结构，拒绝写入: {self.path}")
-            section_data = data.get(section)
-            if not isinstance(section_data, dict):
-                section_data = {}
-                data[section] = section_data
-            _deep_merge(section_data, update)
-            # 先用副本校验合并结果，未知键（extra=forbid）/非法值在此拦截
+        # 进程内 RLock 串行化同实例，文件锁串行化跨进程（GUI 与 CLI 并存）。
+        with self._lock, _config_file_lock(self.path):
             try:
-                model_cls.model_validate(dict(section_data))
-            except ValidationError as exc:
-                raise ConfigError(f"配置校验失败: {self.path}: {exc}") from exc
-            self._atomic_write(data)
+                with self.path.open("r", encoding="utf-8") as f:
+                    data = _yaml.load(f)
+                if data is None:
+                    data = {}
+                if not isinstance(data, dict):
+                    raise ConfigError(
+                        f"配置文件顶层必须是映射结构，拒绝写入: {self.path}"
+                    )
+                section_data = data.get(section)
+                if not isinstance(section_data, dict):
+                    section_data = {}
+                    data[section] = section_data
+                _deep_merge(section_data, update)
+                # 先用副本校验合并结果，未知键（extra=forbid）/非法值在此拦截
+                try:
+                    model_cls.model_validate(dict(section_data))
+                except ValidationError as exc:
+                    raise ConfigError(f"配置校验失败: {self.path}: {exc}") from exc
+                self._atomic_write(data)
+            except ConfigError:
+                raise
+            except OSError as exc:
+                # 只读部署目录、文件被占用、运行中被删等磁盘侧失败，统一归一为
+                # ConfigError：GUI/CLI 只需处理一种异常，不会漏出裸 traceback。
+                raise ConfigError(f"配置写入失败: {self.path}: {exc}") from exc
 
     def _atomic_write(self, data: dict[Any, Any]) -> None:
         """原子写回完整配置，任何失败都不破坏原文件。

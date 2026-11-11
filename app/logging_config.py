@@ -17,15 +17,17 @@ LOG_CONFIG: dict[str, Any] = {
         "console": {"format": "%(asctime)s %(name)s %(levelname)s %(message)s"}
     },
     "handlers": {
-        "stdout": {
+        "console": {
             "class": "logging.StreamHandler",
             "formatter": "console",
-            "stream": "ext://sys.stdout",
+            # 日志一律走 stderr：CLI 的 --json 结果占 stdout，混在一起会让
+            # ``| jq`` / ``json.loads`` 直接失败。
+            "stream": "ext://sys.stderr",
         }
     },
     "root": {
         "level": "INFO",
-        "handlers": ["stdout"],
+        "handlers": ["console"],
     },
 }
 

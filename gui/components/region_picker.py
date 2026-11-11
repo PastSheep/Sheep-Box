@@ -107,7 +107,15 @@ class RegionPicker(QWidget):
         self._hover_hwnd: int = 0
 
     def start(self) -> None:
-        """覆盖虚拟桌面并显示，开始接收鼠标。"""
+        """覆盖虚拟桌面并显示，开始接收鼠标。
+
+        每次启动都清空上一次的悬停/拖拽状态：复用同一个实例时，残留的
+        ``_hover`` 与 ``_origin`` 会让首帧就画出一个过期选框。
+        """
+        self._origin = None
+        self._current = None
+        self._hover = None
+        self._hover_hwnd = 0
         union = QRect()
         for screen in QGuiApplication.screens():
             union = union.united(screen.geometry())
@@ -116,6 +124,10 @@ class RegionPicker(QWidget):
         self.raise_()
         self.activateWindow()
         self.setFocus()
+
+    def _own_hwnd(self) -> int:
+        """覆盖层自身的顶层窗口句柄。"""
+        return int(self.winId())
 
     # ---------------------------------------------------------------- 绘制
 
@@ -188,7 +200,9 @@ class RegionPicker(QWidget):
             self.update()
             return
 
-        hwnd = hwnd_from_point(*physical)
+        # 覆盖层自己是可见且置顶的顶层窗口，直接取 WindowFromPoint 只会命中自己，
+        # 必须显式跳过，否则选到的永远是本组件（关掉后句柄即失效）。
+        hwnd = hwnd_from_point(*physical, exclude=self._own_hwnd())
         if hwnd == self._hover_hwnd:
             return
         self._hover_hwnd = hwnd
@@ -282,7 +296,8 @@ class RegionPicker(QWidget):
     ) -> None:
         """换算并发出选区结果。"""
         target_hwnd = hwnd or self._hover_hwnd
-        if not target_hwnd:
+        # 兜底：任何路径拿到覆盖层自身都视为未选中（否则结果是关掉的自己）。
+        if not target_hwnd or target_hwnd == self._own_hwnd():
             self._finish_cancel()
             return
         try:

@@ -150,6 +150,7 @@ class OCRManager:
         self._default_spec: ModelSpec | None = None
         self._device: DevicePlan | None = None
         self._thresholds: OcrThresholdConfig | None = None
+        self._model_paths: dict[ModelSpec, ModelSpecPaths] | None = None
         self._apply_config(force=True)
 
     def _apply_config(self, force: bool = False) -> None:
@@ -176,6 +177,9 @@ class OCRManager:
             or default_spec != self._default_spec
             or device != self._device
             or ocr_cfg.thresholds != self._thresholds
+            # 模型路径也要参与比较：只改 config.yaml 里的 det/rec/dict 路径而不动
+            # mode 时，旧引擎会静默继续跑旧模型，用户以为换模型成功了。
+            or ocr_cfg.model.models != self._model_paths
         )
         if not changed:
             return
@@ -192,6 +196,7 @@ class OCRManager:
         self._default_spec = default_spec
         self._device = device
         self._thresholds = ocr_cfg.thresholds
+        self._model_paths = ocr_cfg.model.models
         logger.info("OCR engines rebuilt: mode=%s active=%s", mode, new_active)
 
     def _build_engines(

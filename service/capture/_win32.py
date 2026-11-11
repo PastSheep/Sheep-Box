@@ -43,6 +43,7 @@ __all__ = [
     "root_window",
     "screen_size",
     "virtual_screen_rect",
+    "window_below",
     "window_frame_rect",
     "window_from_point",
     "window_text",
@@ -56,6 +57,7 @@ SRCCOPY = 0x00CC0020
 DIB_RGB_COLORS = 0
 
 _GA_ROOT = 2
+_GW_HWNDNEXT = 2
 _GWL_EXSTYLE = -20
 _WS_EX_TOOLWINDOW = 0x00000080
 _DWMWA_EXTENDED_FRAME_BOUNDS = 9
@@ -477,6 +479,22 @@ def root_window(hwnd: int) -> int:
 def window_from_point(x: int, y: int) -> int:
     """返回屏幕点下方的窗口句柄（可能是子窗口）；无窗口时为 0。"""
     handle = user32.WindowFromPoint(wt.POINT(int(x), int(y)))
+    return int(handle) if handle else 0
+
+
+def window_below(hwnd: int) -> int:
+    """返回 z-order 中位于 ``hwnd`` 下方的下一个顶层窗口；没有时为 0。
+
+    用于「排除覆盖层自身后，找真正被覆盖的那个窗口」：``WindowFromPoint`` 只会
+    给出最上面那个，沿 ``GW_HWNDNEXT`` 往下走才能拿到下一层。
+
+    Args:
+        hwnd: 起始窗口句柄。
+
+    Returns:
+        下一个窗口句柄；已到最底层时为 0。
+    """
+    handle = user32.GetWindow(wt.HWND(hwnd), wt.UINT(_GW_HWNDNEXT))
     return int(handle) if handle else 0
 
 

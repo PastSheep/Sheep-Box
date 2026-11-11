@@ -250,6 +250,34 @@ def test_recognize_invalid_base64_raises(tmp_path, monkeypatch):
         manager.recognize("!!not-base64!!")
 
 
+def test_model_path_change_triggers_rebuild(tmp_path, monkeypatch):
+    """只改 config.yaml 里的模型路径（mode 不变）也必须重建引擎。
+
+    修复前 `changed` 只比较 mode/default_spec/device/thresholds，换模型路径会被
+    静默忽略，用户以为换了模型其实还在跑旧的。
+    """
+    _patch_engine(monkeypatch)
+    manager = _make_manager(tmp_path, ModelMode.MEDIUM.value)
+    assert _constructed_specs == [ModelSpec.MEDIUM]
+
+    # 同一份配置再跑一次：不应重建
+    _constructed_specs.clear()
+    manager._apply_config()
+    assert _constructed_specs == []
+
+    # 新增一个真实存在的模型文件，并把 det 指过去
+    (tmp_path / "medium" / "det2.onnx").touch()
+    path = tmp_path / "config.yaml"
+    text = path.read_text(encoding="utf-8")
+    path.write_text(
+        text.replace("det: medium/det.onnx", "det: medium/det2.onnx"),
+        encoding="utf-8",
+    )
+    manager._apply_config()
+    assert _constructed_specs == [ModelSpec.MEDIUM]
+    assert manager.active_spec == ModelSpec.MEDIUM
+
+
 def test_recognize_engine_error_normalized(tmp_path, monkeypatch):
     """H-2: 引擎识别异常归一化为 OcrError（不外泄底层异常）。"""
     _patch_engine(monkeypatch)

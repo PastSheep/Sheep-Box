@@ -55,7 +55,11 @@ def _is_blank(data: bytes) -> bool:
 
 
 def _intersects_screen(window: WindowInfo) -> bool:
-    """判断窗口是否与虚拟桌面有交集。
+    """判断窗口的**客户区**是否与虚拟桌面有交集。
+
+    用客户区而不是 ``frame_rect``：窗口被拖到只剩标题栏时，边框仍与桌面相交，
+    但客户区已经完全在屏幕外——那种情况必须报 ``WindowOutOfScreenError``，
+    否则屏幕后端会 BitBlt 一个完全越界的源矩形，返回未写入的旧缓冲内容。
 
     Args:
         window: 目标窗口。
@@ -63,7 +67,8 @@ def _intersects_screen(window: WindowInfo) -> bool:
     Returns:
         有交集为真。
     """
-    left, top, width, height = window.frame_rect
+    left, top = window.client_origin
+    width, height = window.screen_width, window.screen_height
     if width <= 0 or height <= 0:
         return False
     screen_left, screen_top, screen_width, screen_height = _win32.virtual_screen_rect()
@@ -300,6 +305,10 @@ class WindowCapturer:
             raise CaptureOccludedError("目标区域被其它窗口覆盖，抓取会得到遮挡者的内容")
         self._dxgi_backend.open(window)
         frame = self._dxgi_backend.capture(region, space=SPACE_SCREEN)
+        if not opts.verify_occlusion:
+            # 关掉校验不等于「确认没被遮挡」，只是把判断权交给业务：标记为可能
+            # 含遮挡者内容，业务据此决定要不要用。
+            frame = replace(frame, occluded=True)
         if degraded:
             frame = replace(frame, degraded=True)
         return frame
@@ -388,6 +397,8 @@ class WindowCapturer:
             raise CaptureOccludedError("目标区域被其它窗口覆盖，抓取会得到遮挡者的内容")
         self._screen_backend.open(window)
         frame = self._screen_backend.capture(region, space=SPACE_SCREEN)
+        if not opts.verify_occlusion:
+            frame = replace(frame, occluded=True)
         if degraded:
             frame = replace(frame, degraded=True)
         if _is_blank(frame.data):

@@ -478,12 +478,23 @@ class DuplicationSession:
             _release(context)
             return False
 
-        output = self._find_output(adapter, point)
+        try:
+            output = self._find_output(adapter, point)
+        except (CaptureUnavailableError, HresultError):
+            # ``_find_output`` 在旋转屏、EnumOutputs 失败时抛错，此时 device/
+            # context 还没交给下面的 try/finally，不放就随栈帧泄漏；显式 backend
+            # 或 auto 判黑走 dxgi 时每次抓取都会重走一次。
+            _release(device)
+            _release(context)
+            raise
         if output is None:
             _release(device)
             _release(context)
             return False
 
+        output1 = ctypes.c_void_p()
+        duplication = ctypes.c_void_p()
+        owned = False
         try:
             output1 = _query_interface(output.output, _IID_IDXGIOUTPUT1)
             if not output1:
@@ -496,13 +507,19 @@ class DuplicationSession:
                 ctypes.c_void_p,
                 ctypes.POINTER(ctypes.c_void_p),
             )
-            duplication = ctypes.c_void_p()
             hr = duplicate(output1, device, ctypes.byref(duplication))
             if hr != _HRESULT_OK or not duplication:
-                _release(output1)
                 raise CaptureUnavailableError(_describe(hr, "DuplicateOutput"))
+            owned = True
         finally:
             _release(output.output)
+            if not owned:
+                # 失败路径必须放掉已经创建的 COM 对象：它们只是局部指针，
+                # 随栈帧丢弃会泄漏 D3D 设备与适配器引用，auto 链每次重试
+                # 都会再漏一份。
+                _release(output1)
+                _release(device)
+                _release(context)
 
         self._device = device
         self._context = context

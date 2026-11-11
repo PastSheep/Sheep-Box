@@ -98,8 +98,11 @@ class DxgiDesktopBackend:
             )
         data = self._grab_with_recovery(rect)
         return ScreenFrame(
-            width=region.width,
-            height=region.height,
+            # 屏幕口径下 ``ScreenFrame`` 的宽高是**输出像素**，必须用换算后的矩形；
+            # 用 ``region.width`` 在 DPI 虚拟化窗口（1280×720 → 1600×900）下会与
+            # 缓冲长度不符，硬校验直接抛 ValueError。
+            width=rect[2],
+            height=rect[3],
             data=data,
             region=region,
             space=SPACE_SCREEN,

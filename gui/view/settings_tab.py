@@ -13,8 +13,13 @@ OCR 等业务模块的运行参数留在 ``config.yaml`` 由真正的业务模�
 
 from __future__ import annotations
 
-from PySide6.QtCore import Signal
-from PySide6.QtWidgets import QLabel, QVBoxLayout, QWidget
+from PySide6.QtCore import QPropertyAnimation, QTimer, Signal
+from PySide6.QtWidgets import (
+    QGraphicsOpacityEffect,
+    QLabel,
+    QVBoxLayout,
+    QWidget,
+)
 
 from app.i18n import SUPPORTED_UI_LANGUAGES, resolve_ui_language
 from app.theme import SUPPORTED_THEMES, resolve_ui_theme
@@ -27,6 +32,9 @@ from gui.components.wide_field_row import WideFieldRow
 from gui.theme.tokens import DesignTokens, tokens_for
 
 __all__ = ["SettingsTab"]
+
+_NOTICE_HOLD_MS = 3000
+_NOTICE_FADE_MS = 320
 
 #: 可选刷新间隔（毫秒, 显示文本）。显示文本是数值单位，不参与翻译。
 _REFRESH_INTERVALS: tuple[tuple[int, str], ...] = (
@@ -169,16 +177,103 @@ class SettingsTab(QWidget):
         status_layout.addWidget(self._stops_row)
 
         # ---------------------------------------------------- 页面布局
+        # 提示条：写盘失败时在页面内说明"已恢复原设置"，3 秒后淡出。
+        # 放在两张卡片上方，不遮挡操作，也不引入额外对话框。
+        self._notice = QLabel(self)
+        self._notice.setObjectName("NoticeLabel")
+        self._notice.setWordWrap(True)
+        self._notice.setStyleSheet("color: #E5484D;")
+        self._notice_effect = QGraphicsOpacityEffect(self._notice)
+        self._notice.setGraphicsEffect(self._notice_effect)
+        self._notice_anim = QPropertyAnimation(self._notice_effect, b"opacity", self)
+        self._notice_anim.setDuration(_NOTICE_FADE_MS)
+        self._notice_anim.finished.connect(self._on_notice_faded)
+        self._notice_timer = QTimer(self)
+        self._notice_timer.setSingleShot(True)
+        self._notice_timer.timeout.connect(self._fade_out_notice)
+        self._notice.hide()
+
         page_layout = QVBoxLayout(self)
         page_layout.setContentsMargins(
             metrics.space_xl, metrics.space_xl, metrics.space_xl, metrics.space_xl
         )
         page_layout.setSpacing(metrics.space_lg)
+        page_layout.addWidget(self._notice, 0)
         page_layout.addWidget(self._card, 0)
         page_layout.addWidget(self._status_card, 0)
         page_layout.addStretch(1)
 
         self.retranslate_ui()
+
+    def show_notice(self, text: str) -> None:
+        """在页面内显示一条短暂提示（自动淡出）。
+
+        Args:
+            text: 提示文本（调用方负责 ``tr()``）。
+        """
+        self._notice_anim.stop()
+        self._notice_effect.setOpacity(1.0)
+        self._notice.setText(text)
+        self._notice.show()
+        self._notice_timer.start(_NOTICE_HOLD_MS)
+
+    def show_values(
+        self,
+        *,
+        language: str | None = None,
+        theme: str | None = None,
+        interval: int | None = None,
+        stops: list[tuple[float, str]] | None = None,
+    ) -> None:
+        """把控件显示值复位到给定配置（写盘失败回滚用）。
+
+        回滚必须屏蔽信号：``setCurrentIndex`` 会触发 ``currentIndexChanged``，
+        不屏蔽就会在失败后再发起一次保存。
+
+        Args:
+            language: 目标语言代码；``None`` 表示不改。
+            theme: 目标主题；``None`` 表示不改。
+            interval: 状态栏刷新间隔（毫秒）；``None`` 表示不改。
+            stops: 压力着色锚点；``None`` 表示不改。
+        """
+        guarded: list[QWidget] = []
+        if language is not None:
+            guarded.append(self._language_combo)
+        if theme is not None:
+            guarded.append(self._theme_combo)
+        if interval is not None:
+            guarded.append(self._interval_combo)
+        previous = [(widget, widget.blockSignals(True)) for widget in guarded]
+        try:
+            if language is not None:
+                index = self._language_combo.findData(resolve_ui_language(language))
+                if index >= 0:
+                    self._language_combo.setCurrentIndex(index)
+            if theme is not None:
+                index = self._theme_combo.findData(resolve_ui_theme(theme))
+                if index >= 0:
+                    self._theme_combo.setCurrentIndex(index)
+            if interval is not None:
+                index = self._interval_combo.findData(interval)
+                if index >= 0:
+                    self._interval_combo.setCurrentIndex(index)
+            if stops is not None:
+                self._stops_control.set_stops(stops)
+        finally:
+            for widget, state in previous:
+                widget.blockSignals(state)
+
+    def _fade_out_notice(self) -> None:
+        """停止计时后做淡出动画。"""
+        self._notice_anim.stop()
+        self._notice_anim.setStartValue(1.0)
+        self._notice_anim.setEndValue(0.0)
+        self._notice_anim.start()
+
+    def _on_notice_faded(self) -> None:
+        """淡出结束且已完全透明时隐藏，避免占位。"""
+        if self._notice_effect.opacity() <= 0.0:
+            self._notice.hide()
 
     def apply_tokens(self, tokens: DesignTokens) -> None:
         """主题切换时更新令牌（卡片会重建模糊背景）。"""

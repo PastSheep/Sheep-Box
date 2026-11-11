@@ -133,18 +133,53 @@ def list_windows(
     return tuple(result)
 
 
-def hwnd_from_point(x: int, y: int) -> int:
+def _hits_point(hwnd: int, x: int, y: int) -> bool:
+    """候选窗口是否可见且窗框矩形真的包含该点。
+
+    ``GW_HWNDNEXT`` 下探会路过一批"z 序在上、但没有像素"的系统窗口（``MSCTFIME
+    UI``、``tooltips_class32``、``Default IME``），以及被别的窗口挡住的目标。
+    直接返回第一个非覆盖层句柄，会让选取落到看不见的窗口上（静默取消，或截到
+    错误但看起来合法的窗口），所以要求可见且矩形包含光标点。
+
+    Returns:
+        可用返回 True；窗口不存在、不可见或取不到矩形返回 False。
+    """
+    try:
+        if not _win32.is_visible(hwnd):
+            return False
+        left, top, width, height = _win32.window_frame_rect(hwnd)
+    except _win32.NativeApiError:
+        return False
+    if width <= 0 or height <= 0:
+        return False
+    return left <= x < left + width and top <= y < top + height
+
+
+def hwnd_from_point(x: int, y: int, *, exclude: int = 0) -> int:
     """返回屏幕点下方的顶层窗口句柄。
 
     Args:
         x: 屏幕物理 X。
         y: 屏幕物理 Y。
+        exclude: 需要跳过的窗口（通常是覆盖层自身）。命中它时沿 z-order 向下
+            继续找，这样覆盖层才能选中它下面的真实目标。
 
     Returns:
-        顶层窗口句柄；该处没有窗口时为 0。
+        可见且矩形覆盖该点的顶层窗口句柄；找不到时为 0（调用方应视为取消，
+        而不是退回一个与光标无关的窗口）。
     """
     handle = _win32.window_from_point(x, y)
-    return _win32.root_window(handle) if handle else 0
+    root = _win32.root_window(handle) if handle else 0
+    guard = 0
+    # 覆盖层自身、隐藏的系统窗口、不包含该点的窗口都要跳过；``guard`` 防止
+    # ``GW_HWNDNEXT`` 异常回指造成死循环，耗尽上界即判定"没有可用目标"。
+    while root and guard < 16:
+        if root != exclude and _hits_point(root, x, y):
+            return root
+        below = _win32.window_below(root)
+        root = _win32.root_window(below) if below else 0
+        guard += 1
+    return 0
 
 
 def client_to_screen_rect(

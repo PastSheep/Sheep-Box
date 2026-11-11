@@ -4,19 +4,24 @@
 <context>
     <name>MainWindow</name>
     <message>
-        <location filename="../../gui/view/main_window.py" line="363"/>
+        <location filename="../../gui/view/main_window.py" line="309"/>
+        <source>Failed to save settings, reverted</source>
+        <translation>保存失败，已恢复原设置</translation>
+    </message>
+    <message>
+        <location filename="../../gui/view/main_window.py" line="391"/>
         <source>Sample</source>
         <translation>示例</translation>
     </message>
     <message>
-        <location filename="../../gui/view/main_window.py" line="363"/>
+        <location filename="../../gui/view/main_window.py" line="391"/>
         <source>Settings</source>
         <translation>设置</translation>
     </message>
     <message>
         <location filename="../../gui/view/main_window.py" line="107"/>
-        <location filename="../../gui/view/main_window.py" line="361"/>
-        <location filename="../../gui/view/main_window.py" line="365"/>
+        <location filename="../../gui/view/main_window.py" line="389"/>
+        <location filename="../../gui/view/main_window.py" line="393"/>
         <source>Sheep Box</source>
         <extracomment>导航条图标键：设置齿轮状滑块 / 示例页叠层。</extracomment>
         <translation>Sheep Box</translation>
@@ -25,7 +30,7 @@
 <context>
     <name>RegionPicker</name>
     <message>
-        <location filename="../../gui/components/region_picker.py" line="144"/>
+        <location filename="../../gui/components/region_picker.py" line="156"/>
         <source>Click a window, or drag to select a region (Esc to cancel)</source>
         <translation>单击窗口选择整窗，或拖拽框选区域（Esc 取消）</translation>
     </message>
@@ -56,43 +61,43 @@
 <context>
     <name>SettingsTab</name>
     <message>
-        <location filename="../../gui/view/settings_tab.py" line="199"/>
+        <location filename="../../gui/view/settings_tab.py" line="294"/>
         <source>Appearance</source>
         <extracomment>可选刷新间隔（毫秒, 显示文本）。显示文本是数值单位，不参与翻译。 配置缺失时的兜底锚点（与 ``config.schema`` 默认值一致）</extracomment>
         <translation>外观</translation>
     </message>
     <message>
-        <location filename="../../gui/view/settings_tab.py" line="200"/>
+        <location filename="../../gui/view/settings_tab.py" line="295"/>
         <source>UI Language</source>
         <translation>界面语言</translation>
     </message>
     <message>
-        <location filename="../../gui/view/settings_tab.py" line="201"/>
+        <location filename="../../gui/view/settings_tab.py" line="296"/>
         <source>Theme</source>
         <translation>主题</translation>
     </message>
     <message>
-        <location filename="../../gui/view/settings_tab.py" line="202"/>
+        <location filename="../../gui/view/settings_tab.py" line="297"/>
         <source>Status Bar</source>
         <translation>状态栏</translation>
     </message>
     <message>
-        <location filename="../../gui/view/settings_tab.py" line="203"/>
+        <location filename="../../gui/view/settings_tab.py" line="298"/>
         <source>Refresh Interval</source>
         <translation>刷新间隔</translation>
     </message>
     <message>
-        <location filename="../../gui/view/settings_tab.py" line="204"/>
+        <location filename="../../gui/view/settings_tab.py" line="299"/>
         <source>Pressure Colors</source>
         <translation>压力着色</translation>
     </message>
     <message>
-        <location filename="../../gui/view/settings_tab.py" line="208"/>
+        <location filename="../../gui/view/settings_tab.py" line="303"/>
         <source>Light</source>
         <translation>浅色</translation>
     </message>
     <message>
-        <location filename="../../gui/view/settings_tab.py" line="211"/>
+        <location filename="../../gui/view/settings_tab.py" line="306"/>
         <source>Dark</source>
         <translation>深色</translation>
     </message>

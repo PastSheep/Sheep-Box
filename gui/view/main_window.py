@@ -287,13 +287,26 @@ class MainWindow(QMainWindow):
             return StatusBarConfig()
 
     def _save_status_bar(self, update: dict[str, object]) -> None:
-        """把状态栏子字段写回 ``app.status_bar``，失败只记日志。"""
+        """把状态栏子字段写回 ``app.status_bar``；失败回滚控件并提示。"""
         if self._config_manager is None:
             return
         try:
             self._config_manager.save_app({"status_bar": update})
         except ConfigError:
             logger.warning("状态栏配置写回失败: %s", update, exc_info=True)
+            self._apply_status_config(self._current_status_config())
+            self._rollback_notice()
+
+    def _apply_status_config(self, config: StatusBarConfig) -> None:
+        """把状态栏配置应用到定时器与着色条（写盘失败回滚用）。"""
+        self._timer.setInterval(config.refresh_interval_ms)
+        stops = [(stop.at, stop.color) for stop in config.gradient_stops]
+        self._status_bar.set_gradient_stops(stops)
+        self._settings.show_values(interval=config.refresh_interval_ms, stops=stops)
+
+    def _rollback_notice(self) -> None:
+        """写盘失败后的统一提示：界面已恢复到磁盘上的旧设置。"""
+        self._settings.show_notice(self.tr("Failed to save settings, reverted"))
 
     def _on_refresh_interval_selected(self, milliseconds: int) -> None:
         """用户切换刷新间隔：立即改定时器周期并持久化。"""
@@ -328,18 +341,24 @@ class MainWindow(QMainWindow):
 
     def _on_language_selected(self, language: str) -> None:
         """用户切换界面语言：切翻译 → 持久化 → 刷新界面文本。"""
-        from app.i18n import switch_ui_language
+        from app.i18n import resolve_ui_language, switch_ui_language
 
+        previous = self._current_ui_language()
         switch_ui_language(language)
-        if self._config_manager is not None:
-            try:
-                self._config_manager.save_app({"ui_language": language})
-            except ConfigError:
-                logger.warning("界面语言写回失败: %s", language, exc_info=True)
         self.retranslate_ui()
+        if self._config_manager is None:
+            return
+        try:
+            self._config_manager.save_app({"ui_language": language})
+        except ConfigError:
+            logger.warning("界面语言写回失败: %s", language, exc_info=True)
+            switch_ui_language(resolve_ui_language(previous))
+            self.retranslate_ui()
+            self._settings.show_values(language=previous or "")
+            self._rollback_notice()
 
-    def _on_theme_selected(self, theme: str) -> None:
-        """用户切换界面主题：应用调色板与 QSS → 更新令牌 → 持久化。"""
+    def _apply_theme_appearance(self, theme: str | None) -> None:
+        """把主题应用为当前外观（切换与回滚共用）。"""
         self._tokens = apply_appearance(theme)
         self._background.set_tokens(self._tokens)
         self._nav.apply_tokens(self._tokens)
@@ -349,11 +368,20 @@ class MainWindow(QMainWindow):
         if self._title_bar is not None:
             self._title_bar.apply_tokens(self._tokens)
         self._background.update()
-        if self._config_manager is not None:
-            try:
-                self._config_manager.save_app({"theme": theme})
-            except ConfigError:
-                logger.warning("界面主题写回失败: %s", theme, exc_info=True)
+
+    def _on_theme_selected(self, theme: str) -> None:
+        """用户切换界面主题：应用调色板与 QSS → 更新令牌 → 持久化。"""
+        previous = self._current_ui_theme()
+        self._apply_theme_appearance(theme)
+        if self._config_manager is None:
+            return
+        try:
+            self._config_manager.save_app({"theme": theme})
+        except ConfigError:
+            logger.warning("界面主题写回失败: %s", theme, exc_info=True)
+            self._apply_theme_appearance(previous)
+            self._settings.show_values(theme=previous or "")
+            self._rollback_notice()
 
     def retranslate_ui(self) -> None:
         """重设主窗口界面文本（语言切换后刷新）。"""

@@ -18,9 +18,12 @@ from common.exceptions import (
     CaptureRegionError,
     CaptureUnavailableError,
     WindowNotVisibleError,
+    WindowOutOfScreenError,
 )
 from service.capture import capturer as capturer_module
+from service.capture import windows as windows_module
 from service.capture.backends import dxgi as dxgi_module
+from service.capture.backends import gdi as gdi_module
 from service.capture.backends import wgc as wgc_module
 from service.capture.backends._dxgi_native import AccessLostError
 from service.capture.backends.gdi import crop_rows
@@ -225,6 +228,84 @@ def test_client_to_screen_rect_scales_unaware_window() -> None:
     )
     assert (left, top) == (100 + 800, 50 + 450)
     assert (width, height) == (400, 225)
+
+
+def _patch_hit_candidates(
+    monkeypatch: pytest.MonkeyPatch,
+    rects: dict[int, tuple[int, int, int, int]],
+    hidden: set[int] | None = None,
+) -> None:
+    """把候选校验绕到可控的矩形与可见性表上。"""
+    hidden = hidden or set()
+    monkeypatch.setattr(
+        windows_module._win32, "is_visible", lambda hwnd: hwnd not in hidden
+    )
+    monkeypatch.setattr(
+        windows_module._win32,
+        "window_frame_rect",
+        lambda hwnd: rects.get(hwnd, (0, 0, 0, 0)),
+    )
+
+
+def test_hwnd_from_point_skips_excluded_overlay(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """选区覆盖层必须被跳过，否则选中的永远是覆盖层自己。"""
+    monkeypatch.setattr(windows_module._win32, "window_from_point", lambda _x, _y: 111)
+    monkeypatch.setattr(windows_module._win32, "root_window", lambda hwnd: hwnd)
+    monkeypatch.setattr(windows_module._win32, "window_below", lambda _hwnd: 222)
+    _patch_hit_candidates(monkeypatch, {111: (0, 0, 100, 100), 222: (0, 0, 100, 100)})
+    assert windows_module.hwnd_from_point(10, 10) == 111
+    assert windows_module.hwnd_from_point(10, 10, exclude=111) == 222
+
+
+def test_hwnd_from_point_skips_invisible_candidate(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """z 序上层是隐藏系统窗口（MSCTFIME UI 等）时要继续下探。"""
+    monkeypatch.setattr(windows_module._win32, "window_from_point", lambda _x, _y: 111)
+    monkeypatch.setattr(windows_module._win32, "root_window", lambda hwnd: hwnd)
+    monkeypatch.setattr(windows_module._win32, "window_below", lambda _hwnd: 222)
+    _patch_hit_candidates(
+        monkeypatch,
+        {111: (0, 0, 100, 100), 222: (0, 0, 100, 100)},
+        hidden={111},
+    )
+    assert windows_module.hwnd_from_point(10, 10) == 222
+    assert windows_module.hwnd_from_point(10, 10, exclude=111) == 222
+
+
+def test_hwnd_from_point_skips_candidate_not_covering_point(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """可见但不包含光标点的候选不能返回（topmost 双窗口会选错窗）。"""
+    monkeypatch.setattr(windows_module._win32, "window_from_point", lambda _x, _y: 111)
+    monkeypatch.setattr(windows_module._win32, "root_window", lambda hwnd: hwnd)
+    monkeypatch.setattr(windows_module._win32, "window_below", lambda _hwnd: 222)
+    _patch_hit_candidates(monkeypatch, {111: (0, 0, 5, 5), 222: (0, 0, 100, 100)})
+    assert windows_module.hwnd_from_point(10, 10) == 222
+
+
+def test_hwnd_from_point_returns_zero_when_nothing_hit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """整条链都没有可用候选时给 0，让调用方取消而不是选错窗。"""
+    monkeypatch.setattr(windows_module._win32, "window_from_point", lambda _x, _y: 111)
+    monkeypatch.setattr(windows_module._win32, "root_window", lambda hwnd: hwnd)
+    monkeypatch.setattr(windows_module._win32, "window_below", lambda _hwnd: 0)
+    _patch_hit_candidates(monkeypatch, {}, hidden={111})
+    assert windows_module.hwnd_from_point(10, 10) == 0
+
+
+def test_hwnd_from_point_guards_against_below_cycles(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """``GW_HWNDNEXT`` 异常回指自身时不能死循环。"""
+    monkeypatch.setattr(windows_module._win32, "window_from_point", lambda _x, _y: 111)
+    monkeypatch.setattr(windows_module._win32, "root_window", lambda hwnd: hwnd)
+    monkeypatch.setattr(windows_module._win32, "window_below", lambda _hwnd: 111)
+    _patch_hit_candidates(monkeypatch, {111: (0, 0, 100, 100)})
+    assert windows_module.hwnd_from_point(10, 10, exclude=111) == 0
 
 
 def test_region_from_screen_inverts_scaling_and_clamps() -> None:
@@ -474,6 +555,80 @@ def test_capturer_accepts_normalized_region(monkeypatch: pytest.MonkeyPatch) -> 
     assert captured[0] == CaptureRegion(400, 300, 200, 150)
 
 
+def test_capturer_marks_occluded_when_verification_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """关掉遮挡校验时，帧必须标记 ``occluded=True``。
+
+    修复前该字段全仓从不置位，消费者无法区分「确认没被遮挡」和「压根没检查」。
+    """
+    window = _window()
+    _patch_window(monkeypatch, window)
+    monkeypatch.setattr(
+        capturer_module.GdiScreenBackend,
+        "capture",
+        lambda self, region, space: _frame(
+            window,
+            width=region.width,
+            height=region.height,
+            backend="screen",
+            space="screen",
+        ),
+    )
+    unchecked = WindowCapturer(
+        CaptureOptions(backend="screen", verify_occlusion=False)
+    ).capture(1234, CaptureRegion(0, 0, 10, 10))
+    assert unchecked.occluded is True
+
+    monkeypatch.setattr(capturer_module.windows, "is_occluded", lambda *a, **k: False)
+    checked = WindowCapturer(CaptureOptions(backend="screen")).capture(
+        1234, CaptureRegion(0, 0, 10, 10)
+    )
+    assert checked.occluded is False
+
+
+def test_capturer_rejects_window_whose_client_is_offscreen(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """只剩标题栏在桌面内时，客户区已完全出屏，必须拒绝而不是返回旧像素。
+
+    修复前用 ``frame_rect`` 判断：边框仍与桌面相交，校验通过，随后 GDI 用一个
+    完全越界的源矩形 BitBlt，返回成功但不写入复用 DIB。
+    """
+    window = _window(
+        frame_rect=(1900, 60, 816, 639),
+        client_origin=(1930, 100),
+        screen_width=800,
+        screen_height=600,
+    )
+    _patch_window(monkeypatch, window)
+    screen = capturer_module._win32.virtual_screen_rect()
+    assert window.frame_rect[0] < screen[0] + screen[2]
+    assert window.client_origin[0] >= screen[0] + screen[2]
+    with pytest.raises(WindowOutOfScreenError):
+        WindowCapturer(CaptureOptions(backend="screen")).capture(
+            1234, CaptureRegion(0, 0, 10, 10)
+        )
+
+
+def test_gdi_screen_backend_rejects_partially_offscreen_region(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """源矩形部分越界时 GDI 只写重叠部分，必须显式报错而不是返回残留像素。"""
+    backend = gdi_module.GdiScreenBackend()
+    backend.open(_window())
+    monkeypatch.setattr(
+        gdi_module.windows,
+        "client_to_screen_rect",
+        lambda _window, region: (1900, 1070, region.width, region.height),
+    )
+    monkeypatch.setattr(
+        gdi_module._win32, "virtual_screen_rect", lambda: (0, 0, 1920, 1080)
+    )
+    with pytest.raises(CaptureRegionError):
+        backend.capture(CaptureRegion(0, 0, 40, 40), space="screen")
+
+
 # ------------------------------------------------------------------ DXGI
 
 
@@ -569,6 +724,32 @@ def test_dxgi_backend_rejects_empty_region() -> None:
     backend = _dxgi_backend_with(_FakeSession())
     with pytest.raises(CaptureRegionError):
         backend.capture(CaptureRegion(0, 0, 0, 10), space="screen")
+
+
+def test_dxgi_backend_reports_scaled_size_for_virtualized_window(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """DPI 虚拟化窗口下，帧宽高必须是换算后的屏幕像素，而不是客户区逻辑尺寸。
+
+    修复前这里用 ``region.width``，而像素来自放大后的矩形，``ScreenFrame`` 的
+    长度校验会抛 ValueError（不是 CaptureError），直接击穿 auto 的降级链。
+    """
+    session = _FakeSession()
+    backend = _dxgi_backend_with(session)
+    monkeypatch.setattr(
+        dxgi_module.windows,
+        "client_to_screen_rect",
+        lambda _window, region: (
+            100,
+            80,
+            region.width * 5 // 4,
+            region.height * 5 // 4,
+        ),
+    )
+    frame = backend.capture(CaptureRegion(0, 0, 320, 240), space="screen")
+    assert (frame.width, frame.height) == (400, 300)
+    assert len(frame.data) == 400 * 300 * 4
+    assert session.calls == [(100, 80, 400, 300)]
 
 
 # ------------------------------------------------------------------- WGC

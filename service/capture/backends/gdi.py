@@ -63,6 +63,28 @@ def crop_rows(
     return bytes(output)
 
 
+def _within_desktop(rect: tuple[int, int, int, int]) -> bool:
+    """判断屏幕矩形是否完整落在虚拟桌面内。
+
+    ``BitBlt`` 对完全越界的源矩形返回成功但不写目标 DC；表面是复用的，那样就会
+    把上一帧的像素当成新帧返回。因此必须在抓取前显式校验。
+
+    Args:
+        rect: ``(left, top, width, height)``，屏幕物理像素。
+
+    Returns:
+        完整覆盖为真。
+    """
+    left, top, width, height = rect
+    screen_left, screen_top, screen_width, screen_height = _win32.virtual_screen_rect()
+    return (
+        left >= screen_left
+        and top >= screen_top
+        and left + width <= screen_left + screen_width
+        and top + height <= screen_top + screen_height
+    )
+
+
 class _GdiBase:
     """共用的表面管理与释放逻辑。"""
 
@@ -150,6 +172,11 @@ class GdiScreenBackend(_GdiBase):
         if width <= 0 or height <= 0:
             raise CaptureRegionError(
                 f"区域 {region} 换算到屏幕后尺寸非法：{width}x{height}"
+            )
+        if not _within_desktop((left, top, width, height)):
+            # 部分越界时 BitBlt 只写重叠部分，复用表面会把旧像素留在外面。
+            raise CaptureRegionError(
+                f"区域 {region} 换算到屏幕后超出桌面，屏幕后端无法完整抓取"
             )
         surface = self._surface_for(width, height)
         try:

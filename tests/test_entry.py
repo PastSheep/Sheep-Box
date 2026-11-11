@@ -63,6 +63,25 @@ def test_configure_logging_does_not_mutate_log_config():
         root.setLevel(saved_level)
 
 
+def test_runtime_logs_go_to_stderr_not_stdout(capsys):
+    """日志必须写 stderr：CLI 的 ``--json`` 结果占 stdout，混进去就无法解析。
+
+    修复前 handler 指向 stdin/stdout 的 ``sys.stdout``，INFO 日志会和 JSON 交织。
+    """
+    root = logging.getLogger()
+    saved_handlers = root.handlers[:]
+    saved_level = root.level
+    try:
+        configure_logging("INFO")
+        logging.getLogger("tests.probe").info("stderr-probe")
+        out, err = capsys.readouterr()
+        assert "stderr-probe" not in out
+        assert "stderr-probe" in err
+    finally:
+        root.handlers[:] = saved_handlers
+        root.setLevel(saved_level)
+
+
 def test_import_cli_app_does_not_load_heavy_dependencies():
     code = (
         "import sys, cli.app; "
