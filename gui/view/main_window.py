@@ -17,8 +17,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from PySide6.QtCore import QByteArray, QEvent, Qt
-from PySide6.QtGui import QShowEvent
+from PySide6.QtCore import QByteArray, QEvent, Qt, QTimer
+from PySide6.QtGui import QCloseEvent, QShowEvent
 from PySide6.QtWidgets import (
     QApplication,
     QHBoxLayout,
@@ -28,8 +28,10 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from common.exceptions import ConfigError
+from common.exceptions import ConfigError, SystemInfoError
+from config.schema import StatusBarConfig
 from gui.components.nav_bar import NavBar
+from gui.components.status_bar import StatusBar
 from gui.components.title_bar import TITLE_HEIGHT, TitleBar
 from gui.theme.appearance import apply_appearance
 from gui.theme.background import BackgroundWidget
@@ -37,6 +39,7 @@ from gui.theme.tokens import DesignTokens
 from gui.view.sample_page import SamplePage
 from gui.view.settings_tab import SettingsTab
 from gui.view.window_chrome import NativeFrame, native_frame_enabled
+from service.sysinfo import SystemCollector
 
 if TYPE_CHECKING:
     from config.manager import ConfigManager
@@ -69,10 +72,12 @@ class MainWindow(QMainWindow):
         theme = self._current_ui_theme()
         self._tokens: DesignTokens = apply_appearance(theme)
         metrics = self._tokens.metrics
+        status_config = self._current_status_config()
 
         self._settings = SettingsTab(
             ui_language=self._current_ui_language(),
             theme=theme,
+            status_bar=status_config,
             tokens=self._tokens,
         )
         self._sample = SamplePage(tokens=self._tokens)
@@ -116,19 +121,35 @@ class MainWindow(QMainWindow):
             header = nav_row
 
         self._background = BackgroundWidget(self._tokens, self)
+        self._status_bar = StatusBar(
+            tokens=self._tokens,
+            stops=[(stop.at, stop.color) for stop in status_config.gradient_stops],
+            parent=self._background,
+        )
         layout = QVBoxLayout(self._background)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
         layout.addWidget(header, 0)
         layout.addWidget(self._stack, 1)
+        layout.addWidget(self._status_bar, 0)
         self.setCentralWidget(self._background)
 
         self.resize(600, 480)
         self.setMinimumSize(520, 400)
 
+        self._collector: SystemCollector | None = None
+        self._timer = QTimer(self)
+        self._timer.setInterval(status_config.refresh_interval_ms)
+        self._timer.timeout.connect(self._refresh_status)
+        self._sample_failed = False
+
         self._nav.currentChanged.connect(self._on_page_changed)
         self._settings.language_selected.connect(self._on_language_selected)
         self._settings.theme_selected.connect(self._on_theme_selected)
+        self._settings.refresh_interval_selected.connect(
+            self._on_refresh_interval_selected
+        )
+        self._settings.gradient_stops_changed.connect(self._on_gradient_stops_changed)
         self.retranslate_ui()
 
     # -------------------------------------------------------- 窗口框架
@@ -144,13 +165,53 @@ class MainWindow(QMainWindow):
         return super().nativeEvent(event_type, message)
 
     def showEvent(self, event: QShowEvent) -> None:
-        """首次显示时接入原生框架，并把焦点交给背景层。
+        """首次显示时接入原生框架、启动状态栏采样，并把焦点交给背景层。
 
         焦点交给背景层是为了避免第一个下拉框一打开就带着高亮（观感上像误触）。
         """
         super().showEvent(event)
         self._install_native_frame()
         self._background.setFocus()
+        self._start_monitoring()
+
+    def closeEvent(self, event: QCloseEvent) -> None:
+        """关闭窗口时停止采样并释放 PDH 句柄。"""
+        self._timer.stop()
+        if self._collector is not None:
+            self._collector.close()
+            self._collector = None
+        super().closeEvent(event)
+
+    def _start_monitoring(self) -> None:
+        """创建采集器并启动刷新定时器（重复调用无副作用）。
+
+        采集器构造时已建立 CPU 时间与 GPU 计数器的基线，因此第一次定时触发
+        读到的就是真实区间值，不需要额外丢弃首帧。
+        """
+        if not self._timer.isActive():
+            self._timer.start()
+        if self._collector is not None:
+            return
+        try:
+            self._collector = SystemCollector()
+        except Exception:
+            logger.warning("系统信息采集器初始化失败，状态栏将保持空值", exc_info=True)
+            self._collector = None
+
+    def _refresh_status(self) -> None:
+        """定时采样并刷新状态栏；连续失败只记一次日志。"""
+        collector = self._collector
+        if collector is None:
+            return
+        try:
+            snapshot = collector.sample()
+        except SystemInfoError as exc:
+            if not self._sample_failed:
+                logger.warning("状态栏采样失败: %s", exc)
+                self._sample_failed = True
+            return
+        self._sample_failed = False
+        self._status_bar.apply_snapshot(snapshot)
 
     def _install_native_frame(self) -> None:
         """首次显示后把自绘标题栏接到原生窗口消息上（仅 Windows 真实窗口）。"""
@@ -215,6 +276,56 @@ class MainWindow(QMainWindow):
             logger.warning("读取界面主题失败，回退默认浅色", exc_info=True)
             return None
 
+    def _current_status_config(self) -> StatusBarConfig:
+        """读取状态栏配置；config 不可用或字段缺失时回退 schema 默认值。"""
+        if self._config_manager is None:
+            return StatusBarConfig()
+        try:
+            return self._config_manager.app().status_bar
+        except ConfigError:
+            logger.warning("读取状态栏配置失败，回退默认值", exc_info=True)
+            return StatusBarConfig()
+
+    def _save_status_bar(self, update: dict[str, object]) -> None:
+        """把状态栏子字段写回 ``app.status_bar``，失败只记日志。"""
+        if self._config_manager is None:
+            return
+        try:
+            self._config_manager.save_app({"status_bar": update})
+        except ConfigError:
+            logger.warning("状态栏配置写回失败: %s", update, exc_info=True)
+
+    def _on_refresh_interval_selected(self, milliseconds: int) -> None:
+        """用户切换刷新间隔：立即改定时器周期并持久化。"""
+        self._timer.setInterval(milliseconds)
+        self._save_status_bar({"refresh_interval_ms": milliseconds})
+
+    def _on_gradient_stops_changed(self, stops: object) -> None:
+        """用户编辑压力着色锚点：状态栏立即换色并持久化。
+
+        信号用 ``list`` 承载，跨进程边界后元素类型不确定，这里逐个校验再转换，
+        非法条目直接跳过（不阻断其余锚点生效）。
+
+        Args:
+            stops: ``[(位置百分比, #rrggbb), ...]``。
+        """
+        parsed: list[tuple[float, str]] = []
+        if isinstance(stops, list):
+            for entry in stops:
+                if not isinstance(entry, tuple) or len(entry) != 2:
+                    continue
+                at, color = entry
+                try:
+                    parsed.append((float(at), str(color)))
+                except (TypeError, ValueError):
+                    continue
+        if len(parsed) < 2:
+            return
+        self._status_bar.set_gradient_stops(parsed)
+        self._save_status_bar(
+            {"gradient_stops": [{"at": at, "color": color} for at, color in parsed]}
+        )
+
     def _on_language_selected(self, language: str) -> None:
         """用户切换界面语言：切翻译 → 持久化 → 刷新界面文本。"""
         from app.i18n import switch_ui_language
@@ -234,6 +345,7 @@ class MainWindow(QMainWindow):
         self._nav.apply_tokens(self._tokens)
         self._settings.apply_tokens(self._tokens)
         self._sample.apply_tokens(self._tokens)
+        self._status_bar.apply_tokens(self._tokens)
         if self._title_bar is not None:
             self._title_bar.apply_tokens(self._tokens)
         self._background.update()
@@ -253,6 +365,7 @@ class MainWindow(QMainWindow):
             self._title_bar.set_title(self.tr("Sheep Box"))
         self._settings.retranslate_ui()
         self._sample.retranslate_ui()
+        self._status_bar.retranslate_ui()
 
 
 def run_gui(

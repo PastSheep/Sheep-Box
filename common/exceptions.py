@@ -18,3 +18,7 @@ class OcrError(SheepBoxError):
 
 class OcrEngineError(OcrError):
     """OCR 引擎（模型加载 / 推理）失败时抛出。"""
+
+
+class SystemInfoError(SheepBoxError):
+    """系统资源采集失败时抛出（CPU / 内存等必需指标读取失败）。"""

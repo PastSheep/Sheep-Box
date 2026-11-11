@@ -14,6 +14,7 @@ from config.schema import (
     ModelSpec,
     OcrConfig,
     OcrThresholdConfig,
+    StatusBarConfig,
     Theme,
 )
 
@@ -64,5 +65,6 @@ def app_defaults_update() -> dict[str, Any]:
         "app": {
             "ui_language": AppSettingsConfig().ui_language,
             "theme": Theme.LIGHT.value,
+            "status_bar": StatusBarConfig().model_dump(mode="json"),
         }
     }

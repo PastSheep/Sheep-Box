@@ -44,6 +44,72 @@ class Theme(StrEnum):
     DARK = "dark"
 
 
+class GradientStop(BaseModel):
+    """利用率渐变的一个颜色锚点。
+
+    锚点数量不固定：轨道是「位置 → 颜色」的分段线性渐变，相邻锚点之间按位置
+    插值。消费方（状态栏的压力点）与设置页控件用的是同一份锚点，改配置即同时
+    影响展示与编辑预览。
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    at: float = Field(
+        ..., ge=0.0, le=100.0, description="锚点位置（利用率百分比 0~100）"
+    )
+    color: str = Field(
+        ..., pattern=r"^#[0-9A-Fa-f]{6}$", description="锚点颜色，格式 #RRGGBB"
+    )
+
+
+def _default_gradient_stops() -> list[GradientStop]:
+    """默认四段锚点：低负载绿 → 中段黄 → 高负载红。
+
+    Returns:
+        0 / 50 / 80 / 100 四个锚点，100 处重复红色以让高负载区间保持纯红。
+    """
+    return [
+        GradientStop(at=0.0, color="#17A05E"),
+        GradientStop(at=50.0, color="#E0A008"),
+        GradientStop(at=80.0, color="#D94A4A"),
+        GradientStop(at=100.0, color="#D94A4A"),
+    ]
+
+
+class StatusBarConfig(BaseModel):
+    """底部状态栏配置（刷新节奏 + 压力着色）。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    refresh_interval_ms: int = Field(
+        default=1000,
+        ge=250,
+        le=10000,
+        description="采样与刷新间隔（毫秒）；500ms 以下差分读数会明显抖动",
+    )
+    gradient_stops: list[GradientStop] = Field(
+        default_factory=_default_gradient_stops,
+        description="利用率 → 颜色的渐变锚点，三个指标共用一套",
+    )
+
+    @model_validator(mode="after")
+    def _check_stops(self) -> "StatusBarConfig":
+        """校验锚点数量与唯一性。
+
+        Returns:
+            校验通过的自身。
+
+        Raises:
+            ValueError: 锚点少于 2 个（无法构成渐变）或存在重复位置。
+        """
+        if len(self.gradient_stops) < 2:
+            raise ValueError("渐变锚点至少需要 2 个（起点与终点）")
+        positions = [stop.at for stop in self.gradient_stops]
+        if len(set(positions)) != len(positions):
+            raise ValueError("渐变锚点位置不可重复")
+        return self
+
+
 class ModelSpecPaths(BaseModel):
     """单个模型规格对应的 ONNX 模型文件路径（PP-OCRv6）。"""
 
@@ -132,6 +198,9 @@ class AppSettingsConfig(BaseModel):
         default="zh_CN", description="界面语言（i18n），缺省 zh_CN"
     )
     theme: Theme = Field(default=Theme.LIGHT, description="界面主题（黑白），缺省浅色")
+    status_bar: StatusBarConfig = Field(
+        default_factory=StatusBarConfig, description="底部状态栏（刷新节奏与压力着色）"
+    )
 
 
 class AppConfig(BaseModel):

@@ -4,6 +4,7 @@
 - 界面语言解析（默认 zh_CN / 覆盖）；
 - QTranslator 加载（zh_CN.qm 存在且可安装）；
 - 翻译实际生效（安装 zh_CN 后页面标题 / 偏好标签为中文）；
+- Qt 自带 qtbase 翻译生效（取色对话框等内建控件文案跟随语言）；
 - 切换到英文后回退源文本。
 """
 
@@ -12,9 +13,14 @@ import os
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 import pytest
-from PySide6.QtWidgets import QApplication, QComboBox, QLabel
+from PySide6.QtWidgets import QApplication, QColorDialog, QComboBox, QLabel, QPushButton
 
-from app.i18n import I18N_DIR, install_ui_translator, resolve_ui_language
+from app.i18n import (
+    I18N_DIR,
+    install_ui_translator,
+    resolve_ui_language,
+    switch_ui_language,
+)
 from gui.view.main_window import MainWindow
 from gui.view.sample_page import SamplePage
 from gui.view.settings_tab import SettingsTab
@@ -88,3 +94,31 @@ def test_switch_language_updates_ui(qapp):
     assert window.windowTitle() == "Sheep Box"
     assert "Appearance" in labels
     window.close()
+
+
+def _color_dialog_button_texts() -> list[str]:
+    """构造取色对话框并返回其内建按钮文案（Qt 合成控件，走 qtbase 翻译）。"""
+    dialog = QColorDialog()
+    dialog.show()
+    QApplication.processEvents()
+    texts = [button.text() for button in dialog.findChildren(QPushButton)]
+    dialog.close()
+    return texts
+
+
+def test_qtbase_translator_localizes_builtin_dialogs(qapp):
+    """zh_CN 下 Qt 内建对话框（QColorDialog）的按钮文案应为中文。"""
+    assert install_ui_translator("zh_CN") is True
+    texts = _color_dialog_button_texts()
+    assert "确定" in texts
+    assert "取消" in texts
+
+
+def test_switch_to_en_restores_qt_builtin_english(qapp):
+    """切到 en 后 Qt 内建对话框回到英文源，且不影响本程序翻译语义。"""
+    assert switch_ui_language("en") is False
+    texts = _color_dialog_button_texts()
+    assert "OK" in texts
+    assert "Cancel" in texts
+    assert "确定" not in texts
+    assert switch_ui_language("zh_CN") is True

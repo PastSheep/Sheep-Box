@@ -13,6 +13,7 @@ import pytest
 from PySide6.QtWidgets import QApplication, QComboBox, QStackedWidget
 
 from gui.components.glass_card import GlassCard
+from gui.components.gradient_stops import GradientStopsControl
 from gui.components.nav_bar import NavBar
 from gui.components.title_bar import TITLE_HEIGHT, TitleBar
 from gui.theme.background import BackgroundWidget
@@ -113,11 +114,24 @@ def test_settings_page_has_language_combo(qapp):
 
 
 def test_settings_page_has_theme_combo(qapp):
-    """设置页承载黑白主题下拉（light / dark，第二个下拉）。"""
+    """设置页承载黑白主题下拉（light / dark）。"""
     page = SettingsTab()
-    combos = page.findChildren(QComboBox)
-    assert len(combos) >= 2
-    theme_combo = combos[-1]
-    assert theme_combo.findData("light") >= 0
+    theme_combo = next(
+        (c for c in page.findChildren(QComboBox) if c.findData("light") >= 0), None
+    )
+    assert theme_combo is not None
     assert theme_combo.findData("dark") >= 0
+    page.close()
+
+
+def test_settings_page_has_status_bar_controls(qapp):
+    """设置页承载状态栏刷新间隔与压力着色控件。"""
+    from config.schema import StatusBarConfig
+
+    page = SettingsTab(status_bar=StatusBarConfig())
+    interval_combo = next(
+        (c for c in page.findChildren(QComboBox) if c.findData(1000) >= 0), None
+    )
+    assert interval_combo is not None, "应有刷新间隔下拉"
+    assert page.findChild(GradientStopsControl) is not None, "应有渐变锚点控件"
     page.close()

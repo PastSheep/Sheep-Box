@@ -42,3 +42,18 @@ ocr:
 app:
   ui_language: zh_CN
   theme: light
+  # 底部状态栏（CPU / GPU / 内存利用率 + 压力着色）
+  status_bar:
+    # 采样与刷新间隔（毫秒）：250~10000。500 以下差分类计数器读数会明显抖动
+    refresh_interval_ms: 1000
+    # 利用率 → 颜色的渐变锚点（0~100），三个指标共用一套；数量不限，位置不可重复
+    # 相邻锚点之间线性插值，状态栏取色与设置页预览用的是同一份锚点
+    gradient_stops:
+    - at: 0.0
+      color: '#17A05E'
+    - at: 50.0
+      color: '#E0A008'
+    - at: 80.0
+      color: '#D94A4A'
+    - at: 100.0
+      color: '#D94A4A'
