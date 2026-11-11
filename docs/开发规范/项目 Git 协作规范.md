@@ -108,11 +108,22 @@ main（长期稳定，可发布）
 
 1. 归档 tag 命名 `archive/<分支名>-<yyyyMMdd>`，与发布 tag `v<主版本>.<次版本>.<补丁>` 区分，禁止同名复用
 
-2. 远端仓库分工：主仓库只包含 `main` 与其发布 tag；细粒度历史推送到**私密**的只读归档仓库（`refs/heads/archive/*` 与 `archive/*` tag），或执行 `git bundle create <日期>.bundle --all` 另存到其他介质。二者至少其一，不允许两者都无
+2. **归档 tag 指向主干里程碑提交**：指向该分支被 Squash 合并后落在 `main` 的汇总提交，而不是分支末提交。因此主干历史中看不到细化提交，回溯过程必须走归档分支（`git log archive/<分支名，斜杠转横线>`）；tag 只承担「该分支已合入主干」的时间点标记作用
 
-3. 归档分支与 tag 只读：禁止在其上继续提交，禁止删除；清理仓库前先确认 `git tag -l archive/*` 与归档分支完整
+3. 远端仓库分工：主仓库只包含 `main` 与其发布 tag；细粒度历史推送到**私密**的只读归档仓库，或执行 `git bundle create <日期>.bundle --all` 另存到其他介质。二者至少其一，不允许两者都无
 
-4. 归档仓库（私密）与主仓库权限分离：归档仓库不对协作者开放写权限，仅用于回溯与备份
+4. 归档 ref 命名固定：分支为 `refs/heads/archive/<本地分支名，斜杠转横线>`（本地 `fix/audit-20261111` → 远端 `archive/fix-audit-20261111`），tag 为 `archive/<分支名>-<yyyyMMdd>`。推送方式：
+
+```bash
+git push archive refs/heads/fix/audit-20261111:refs/heads/archive/fix-audit-20261111
+git push archive --tags
+```
+
+5. 合并收尾必须核对归档完整性：`git ls-remote archive` 的结果需覆盖本地全部功能分支与全部 `archive/*` tag，缺的逐条补齐，并用 `git rev-parse` 逐个比对 tip 是否一致；只推了分支没推 tag（或反之）不算归档完成
+
+6. 归档分支与 tag 只读：禁止在其上继续提交，禁止删除；清理仓库前先确认 `git tag -l archive/*` 与归档分支完整
+
+7. 归档仓库（私密）与主仓库权限分离：归档仓库不对协作者开放写权限，仅用于回溯与备份
 
 
 
@@ -262,7 +273,7 @@ refactor(common): 抽取统一的异常处理工具
 
 3. 合并方式：默认 **Squash Merge**（将特性分支压缩成一个 commit，保持主干历史干净）。合并提交正文必须写明需求说明、改动点、自测情况，并附带两个 trailer——`Source-Branch: <分支名>`、`Source-Range: <首提交>..<末提交>`，保证能从主干回溯到分支与其中间提交
 
-4. 合并后：删除远端功能分支；本地分支冻结并打 `archive/*` tag（不得继续提交），归档与备份按 2.4 执行。`git branch -D` 仅允许用于已完成 squash 合并且已打归档 tag 的分支
+4. 合并后：删除远端功能分支；本地分支冻结并打 `archive/*` tag（不得继续提交），归档与备份按 2.4 执行，并按 2.4 第 5 条核对归档 refs 完整性（分支与 tag 缺一不可）。`git branch -D` 仅允许用于已完成 squash 合并且已打归档 tag 的分支
 
 
 
